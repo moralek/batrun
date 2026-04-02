@@ -102,8 +102,14 @@ Prerequisitos esperados por defecto para el build Win32 desde Linux:
 - unidades Win32 de FPC en `/tmp/fpc-win32-manual/app/units/i386-win32`
 - Lazarus en `/usr/lib/lazarus/default`
 
-Si otra instancia de Codex necesita rehacer el build y esas rutas cambian, puede
-sobrescribirlas con variables de entorno:
+En el caso normal no hace falta configurar nada mas:
+
+```bash
+bash build.sh
+```
+
+Solo si esas rutas cambian en otra maquina o en otra instancia de Codex, se
+pueden sobrescribir temporalmente con variables de entorno:
 
 ```bash
 BATRUN_PPC386=/ruta/al/ppc386 \
