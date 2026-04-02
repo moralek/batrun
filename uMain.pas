@@ -15,6 +15,8 @@ type
   TVariableItem = class
   public
     DefaultValue: string;
+    DefineDefaultButton: TSpeedButton;
+    HasTaggedDefault: Boolean;
     VarName: string;
     ResetButton: TSpeedButton;
     ValueEdit: TEdit;
@@ -35,10 +37,15 @@ type
     miArchivo: TMenuItem;
     miCargarBat: TMenuItem;
     miConsola: TMenuItem;
+    miConfiguracion: TMenuItem;
     miConfigurarEditor: TMenuItem;
+    miDefinirValoresDefault: TMenuItem;
     miEditarBat: TMenuItem;
     miLimpiarConsola: TMenuItem;
+    miSalir: TMenuItem;
     miResetearValores: TMenuItem;
+    miSoloPrecomentadas: TMenuItem;
+    miVariables: TMenuItem;
     OpenDialog1: TOpenDialog;
     pnlConsole: TPanel;
     pnlActions: TPanel;
@@ -52,9 +59,13 @@ type
     procedure btnClearOutputClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure FormDropFiles(Sender: TObject; const FileNames: array of string);
     procedure FormShow(Sender: TObject);
     procedure miConfigurarEditorClick(Sender: TObject);
+    procedure miDefinirValoresDefaultClick(Sender: TObject);
     procedure miResetearValoresClick(Sender: TObject);
+    procedure miSalirClick(Sender: TObject);
+    procedure miSoloPrecomentadasClick(Sender: TObject);
     procedure ProcessTimerTimer(Sender: TObject);
     procedure ScrollBox1Resize(Sender: TObject);
   private
@@ -64,6 +75,7 @@ type
     FExecuteIcon: TImage;
     FInitialLoadDone: Boolean;
     FLastBatchDir: string;
+    FOnlyPrecommentedVariables: Boolean;
     FProcess: TProcess;
     FProcessStart: TDateTime;
     FProcessTimer: TTimer;
@@ -72,16 +84,20 @@ type
     procedure ApplyGuiValuesToBatchFile;
     procedure BringProcessWindowToFront(const APID: DWORD);
     procedure BringSelfToFront;
+    procedure btnDefineDefaultClick(Sender: TObject);
     procedure btnResetVariableClick(Sender: TObject);
     procedure ClearVariableControls;
     function ConfigureEditor: Boolean;
     procedure CreateAppIcon;
     procedure CreateExecuteIcon;
     function CmdQuote(const S: string): string;
+    procedure DefineVariableAsDefault(AItem: TVariableItem);
     procedure EditBatchFile;
     function ExtractAssignment(const Line: string; out VarName, VarValue: string): Boolean;
     function ExtractTaggedDefault(const Line: string; out VarName, VarValue: string): Boolean;
     function FormatElapsed(const AStart, AFinish: TDateTime): string;
+    procedure DefineVisibleVariablesAsDefault;
+    procedure LoadDroppedBatchFile(const FileName: string);
     procedure LoadBatchVariables(const FileName: string);
     procedure PositionExecuteButton;
     procedure LoadSettings;
@@ -137,6 +153,7 @@ begin
   FProcessTimer.Interval := 300;
   FProcessTimer.OnTimer := @ProcessTimerTimer;
   FStartupDir := GetCurrentDir;
+  FOnlyPrecommentedVariables := False;
   OpenDialog1.Filter := 'Batch files|*.bat|All files|*.*';
   OpenDialog1.Options := OpenDialog1.Options + [ofFileMustExist, ofPathMustExist];
   OpenDialog1.InitialDir := FStartupDir;
@@ -183,11 +200,14 @@ begin
   btnExecute.BevelOuter := bvNone;
   btnExecute.Cursor := crHandPoint;
   btnExecute.ParentBackground := False;
+  btnExecute.Hint := 'Ejecutar';
+  btnExecute.ShowHint := True;
   CreateAppIcon;
   CreateExecuteIcon;
   btnExecute.Parent := ScrollBox1;
   btnExecute.Anchors := [akTop, akRight];
   LoadSettings;
+  miSoloPrecomentadas.Checked := FOnlyPrecommentedVariables;
   PositionExecuteButton;
   SetStatus('Listo');
   UpdateRunState(False);
@@ -254,7 +274,7 @@ begin
 
   if Assigned(FProcess) then
   begin
-    MessageDlg('Ya hay una ejecucion en curso.', mtWarning, [mbOK], 0);
+    MessageDlg('Ya hay una ejecución en curso.', mtWarning, [mbOK], 0);
     Exit;
   end;
 
@@ -275,7 +295,7 @@ begin
   MemoOutput.Lines.Add('Inicio: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', FProcessStart));
   MemoOutput.Lines.Add('Archivo: ' + FBatchFileName);
   if FVariables.Count = 0 then
-    MemoOutput.Lines.Add('Ejecucion sin reemplazos desde la GUI.');
+    MemoOutput.Lines.Add('Ejecución sin reemplazos desde la GUI.');
   SetStatus('Ejecutando...');
   UpdateRunState(True);
   BringProcessWindowToFront(FProcess.ProcessID);
@@ -328,12 +348,29 @@ begin
   SetStatus('Variable restablecida: ' + Item.VarName);
 end;
 
+procedure TMainForm.btnDefineDefaultClick(Sender: TObject);
+var
+  Item: TVariableItem;
+begin
+  Item := TVariableItem(PtrUInt((Sender as TSpeedButton).Tag));
+  if Item = nil then
+    Exit;
+  DefineVariableAsDefault(Item);
+  SetStatus('Default definido: ' + Item.VarName);
+end;
+
 function TMainForm.ConfigureEditor: Boolean;
 begin
   if FileExists(FEditorPath) then
+  begin
+    EditorDialog1.InitialDir := ExtractFileDir(FEditorPath);
     EditorDialog1.FileName := FEditorPath
+  end
   else
+  begin
+    EditorDialog1.InitialDir := FStartupDir;
     EditorDialog1.FileName := '';
+  end;
 
   if EditorDialog1.Execute then
   begin
@@ -394,6 +431,8 @@ begin
   FExecuteIcon.Proportional := True;
   FExecuteIcon.Transparent := True;
   FExecuteIcon.Cursor := crHandPoint;
+  FExecuteIcon.Hint := 'Ejecutar';
+  FExecuteIcon.ShowHint := True;
   FExecuteIcon.Picture.Assign(Icon);
   FExecuteIcon.OnClick := @btnExecuteClick;
 end;
@@ -416,12 +455,15 @@ begin
     Lines.LoadFromFile(FBatchFileName);
     for I := 1 to Lines.Count - 1 do
     begin
-      if not ExtractTaggedDefault(Lines[I - 1], TaggedName, TaggedValue) then
-        Continue;
       if not ExtractAssignment(Lines[I], VarName, VarValue) then
         Continue;
-      if not SameText(TaggedName, VarName) then
-        Continue;
+      if FOnlyPrecommentedVariables then
+      begin
+        if not ExtractTaggedDefault(Lines[I - 1], TaggedName, TaggedValue) then
+          Continue;
+        if not SameText(TaggedName, VarName) then
+          Continue;
+      end;
 
       for Item in FVariables do
         if SameText(Item.VarName, VarName) then
@@ -474,6 +516,20 @@ begin
   Result := '"' + StringReplace(S, '"', '\"', [rfReplaceAll]) + '"';
 end;
 
+procedure TMainForm.FormDropFiles(Sender: TObject; const FileNames: array of string);
+begin
+  if Length(FileNames) > 0 then
+    LoadDroppedBatchFile(FileNames[0]);
+end;
+
+procedure TMainForm.miSoloPrecomentadasClick(Sender: TObject);
+begin
+  FOnlyPrecommentedVariables := not FOnlyPrecommentedVariables;
+  miSoloPrecomentadas.Checked := FOnlyPrecommentedVariables;
+  if FileExists(FBatchFileName) then
+    LoadBatchVariables(FBatchFileName);
+end;
+
 procedure TMainForm.EditBatchFile;
 var
   Proc: TProcess;
@@ -503,6 +559,20 @@ begin
   end;
 end;
 
+procedure TMainForm.LoadDroppedBatchFile(const FileName: string);
+begin
+  if not FileExists(FileName) then
+    Exit;
+
+  if not SameText(ExtractFileExt(FileName), '.bat') then
+  begin
+    MessageDlg('Solo puede arrastrar archivos .bat.', mtWarning, [mbOK], 0);
+    Exit;
+  end;
+
+  LoadBatchVariables(FileName);
+end;
+
 function TMainForm.FormatElapsed(const AStart, AFinish: TDateTime): string;
 var
   TotalSeconds: Int64;
@@ -515,6 +585,88 @@ begin
   Minutes := (TotalSeconds mod 3600) div 60;
   Seconds := TotalSeconds mod 60;
   Result := Format('%.2d:%.2d:%.2d', [Hours, Minutes, Seconds]);
+end;
+
+procedure TMainForm.DefineVariableAsDefault(AItem: TVariableItem);
+var
+  Lines: TStringList;
+  I: Integer;
+  ExistingTagName: string;
+  ExistingTagValue: string;
+  VarName: string;
+  VarValue: string;
+begin
+  if (AItem = nil) or (FBatchFileName = '') or (not FileExists(FBatchFileName)) then
+    Exit;
+
+  Lines := TStringList.Create;
+  try
+    Lines.LoadFromFile(FBatchFileName);
+    for I := 0 to Lines.Count - 1 do
+    begin
+      if not ExtractAssignment(Lines[I], VarName, VarValue) then
+        Continue;
+      if not SameText(VarName, AItem.VarName) then
+        Continue;
+
+      Lines[I] := 'set ' + AItem.VarName + '=' + AItem.ValueEdit.Text;
+      if (I > 0)
+        and ExtractTaggedDefault(Lines[I - 1], ExistingTagName, ExistingTagValue)
+        and SameText(ExistingTagName, AItem.VarName) then
+        Lines[I - 1] := '::' + AItem.VarName + '=' + AItem.ValueEdit.Text
+      else
+        Lines.Insert(I, '::' + AItem.VarName + '=' + AItem.ValueEdit.Text);
+      Break;
+    end;
+    Lines.SaveToFile(FBatchFileName);
+  finally
+    Lines.Free;
+  end;
+
+  LoadBatchVariables(FBatchFileName);
+end;
+
+procedure TMainForm.DefineVisibleVariablesAsDefault;
+var
+  Lines: TStringList;
+  Item: TVariableItem;
+  I: Integer;
+  ExistingTagName: string;
+  ExistingTagValue: string;
+  VarName: string;
+  VarValue: string;
+begin
+  if (FBatchFileName = '') or (not FileExists(FBatchFileName)) or (FVariables.Count = 0) then
+    Exit;
+
+  Lines := TStringList.Create;
+  try
+    Lines.LoadFromFile(FBatchFileName);
+
+    for Item in FVariables do
+      for I := 0 to Lines.Count - 1 do
+      begin
+        if not ExtractAssignment(Lines[I], VarName, VarValue) then
+          Continue;
+        if not SameText(VarName, Item.VarName) then
+          Continue;
+
+        Lines[I] := 'set ' + Item.VarName + '=' + Item.ValueEdit.Text;
+        if (I > 0)
+          and ExtractTaggedDefault(Lines[I - 1], ExistingTagName, ExistingTagValue)
+          and SameText(ExistingTagName, Item.VarName) then
+          Lines[I - 1] := '::' + Item.VarName + '=' + Item.ValueEdit.Text
+        else
+          Lines.Insert(I, '::' + Item.VarName + '=' + Item.ValueEdit.Text);
+        Break;
+      end;
+
+    Lines.SaveToFile(FBatchFileName);
+  finally
+    Lines.Free;
+  end;
+
+  LoadBatchVariables(FBatchFileName);
 end;
 
 function TMainForm.ExtractAssignment(const Line: string; out VarName, VarValue: string): Boolean;
@@ -572,6 +724,7 @@ var
   TopPos: Integer;
   LabelLeft: Integer;
   ControlRight: Integer;
+  DefineLeft: Integer;
   ResetLeft: Integer;
   EditLeft: Integer;
   EditWidth: Integer;
@@ -597,7 +750,8 @@ begin
     LabelLeft := btnLoad.Left;
     ControlRight := btnEditBatch.Left + btnEditBatch.Width;
     ResetGap := 8;
-    ResetLeft := ControlRight - 24;
+    DefineLeft := ControlRight - 24;
+    ResetLeft := DefineLeft - 28;
     if ResetLeft < 160 then
       ResetLeft := 160;
     EditLeft := btnLoad.Left;
@@ -610,24 +764,49 @@ begin
     TotalEditableVars := 0;
     WarnTooManyVariables := False;
 
-    for I := 1 to Lines.Count - 1 do
+    for I := 0 to Lines.Count - 1 do
     begin
-      if not ExtractTaggedDefault(Lines[I - 1], TaggedName, TaggedValue) then
-        Continue;
       if not ExtractAssignment(Lines[I], VarName, VarValue) then
         Continue;
-      if not SameText(TaggedName, VarName) then
-        Continue;
+
+      Item := TVariableItem.Create;
+      Item.VarName := VarName;
+
+      if FOnlyPrecommentedVariables then
+      begin
+        if I = 0 then
+        begin
+          Item.Free;
+          Continue;
+        end;
+        if not ExtractTaggedDefault(Lines[I - 1], TaggedName, TaggedValue) then
+        begin
+          Item.Free;
+          Continue;
+        end;
+        if not SameText(TaggedName, VarName) then
+        begin
+          Item.Free;
+          Continue;
+        end;
+        Item.HasTaggedDefault := True;
+      end
+      else
+      begin
+        Item.HasTaggedDefault := (I > 0) and ExtractTaggedDefault(Lines[I - 1], TaggedName, TaggedValue)
+          and SameText(TaggedName, VarName);
+        if not Item.HasTaggedDefault then
+          TaggedValue := VarValue;
+      end;
+
       Inc(TotalEditableVars);
       if FVariables.Count >= MAX_GUI_VARIABLES then
       begin
+        Item.Free;
         WarnTooManyVariables := True;
         Continue;
       end;
-
-      Item := TVariableItem.Create;
       Item.DefaultValue := TaggedValue;
-      Item.VarName := VarName;
 
       Item.NameLabel := TLabel.Create(ScrollBox1);
       Item.NameLabel.Parent := ScrollBox1;
@@ -638,6 +817,22 @@ begin
       Item.NameLabel.Font.Size := 10;
       Item.NameLabel.Font.Style := [fsBold];
       Item.NameLabel.Font.Color := RGBToColor(60, 49, 35);
+
+      Item.DefineDefaultButton := TSpeedButton.Create(ScrollBox1);
+      Item.DefineDefaultButton.Parent := ScrollBox1;
+      Item.DefineDefaultButton.Caption := '+';
+      Item.DefineDefaultButton.Hint := 'Definir default para ' + VarName;
+      Item.DefineDefaultButton.ShowHint := True;
+      Item.DefineDefaultButton.ParentShowHint := False;
+      Item.DefineDefaultButton.Flat := True;
+      Item.DefineDefaultButton.Cursor := crHandPoint;
+      Item.DefineDefaultButton.Width := 24;
+      Item.DefineDefaultButton.Height := 24;
+      Item.DefineDefaultButton.Left := DefineLeft;
+      Item.DefineDefaultButton.Top := TopPos;
+      Item.DefineDefaultButton.Anchors := [akTop, akRight];
+      Item.DefineDefaultButton.Tag := PtrInt(Item);
+      Item.DefineDefaultButton.OnClick := @btnDefineDefaultClick;
 
       Item.ResetButton := TSpeedButton.Create(ScrollBox1);
       Item.ResetButton.Parent := ScrollBox1;
@@ -652,6 +847,7 @@ begin
       Item.ResetButton.Left := ResetLeft;
       Item.ResetButton.Top := TopPos;
       Item.ResetButton.Anchors := [akTop, akRight];
+      Item.ResetButton.Visible := Item.HasTaggedDefault;
       Item.ResetButton.Tag := PtrInt(Item);
       Item.ResetButton.OnClick := @btnResetVariableClick;
 
@@ -720,6 +916,7 @@ begin
     FEditorPath := Ini.ReadString('General', 'EditorPath', '');
     FLastBatchDir := Ini.ReadString('General', 'LastBatchDir', FStartupDir);
     LastFile := Ini.ReadString('General', 'LastBatchFile', '');
+    FOnlyPrecommentedVariables := Ini.ReadBool('General', 'OnlyPrecommentedVariables', False);
     FBatchFileName := LastFile;
   finally
     Ini.Free;
@@ -729,6 +926,7 @@ end;
 procedure TMainForm.ResetVariablesToDefault;
 var
   Item: TVariableItem;
+  RestoredCount: Integer;
 begin
   if FVariables.Count = 0 then
   begin
@@ -736,8 +934,20 @@ begin
     Exit;
   end;
 
+  RestoredCount := 0;
   for Item in FVariables do
-    Item.ValueEdit.Text := Item.DefaultValue;
+    if Item.HasTaggedDefault then
+    begin
+      Item.ValueEdit.Text := Item.DefaultValue;
+      Inc(RestoredCount);
+    end;
+
+  if RestoredCount = 0 then
+  begin
+    SetStatus('Sin variables con default para restablecer');
+    Exit;
+  end;
+
   ApplyGuiValuesToBatchFile;
   SetStatus('Valores restablecidos');
 end;
@@ -756,6 +966,7 @@ begin
     Ini.WriteString('General', 'EditorPath', FEditorPath);
     Ini.WriteString('General', 'LastBatchDir', FLastBatchDir);
     Ini.WriteString('General', 'LastBatchFile', FBatchFileName);
+    Ini.WriteBool('General', 'OnlyPrecommentedVariables', FOnlyPrecommentedVariables);
   finally
     Ini.Free;
   end;
@@ -766,9 +977,20 @@ begin
   ConfigureEditor;
 end;
 
+procedure TMainForm.miDefinirValoresDefaultClick(Sender: TObject);
+begin
+  DefineVisibleVariablesAsDefault;
+  SetStatus('Defaults definidos');
+end;
+
 procedure TMainForm.miResetearValoresClick(Sender: TObject);
 begin
   ResetVariablesToDefault;
+end;
+
+procedure TMainForm.miSalirClick(Sender: TObject);
+begin
+  Close;
 end;
 
 procedure TMainForm.UpdateRunState(const ARunning: Boolean);

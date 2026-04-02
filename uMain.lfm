@@ -7,10 +7,12 @@ object MainForm: TMainForm
   Caption = 'BAT Runner'
   ClientHeight = 860
   ClientWidth = 1664
+  AllowDropFiles = True
   DesignTimePPI = 192
   LCLVersion = '4.6.0.0'
   OnCreate = FormCreate
   OnDestroy = FormDestroy
+  OnDropFiles = FormDropFiles
   OnShow = FormShow
   object pnlConsole: TPanel
     Left = 8
@@ -179,20 +181,42 @@ object MainForm: TMainForm
         Caption = 'Editar .bat'
         OnClick = btnEditBatchClick
       end
+      object N1: TMenuItem
+        Caption = '-'
+      end
+      object miSalir: TMenuItem
+        Caption = 'Salir'
+        OnClick = miSalirClick
+      end
+    end
+    object miVariables: TMenuItem
+      Caption = 'Variables'
       object miResetearValores: TMenuItem
         Caption = 'Restablecer todas'
         OnClick = miResetearValoresClick
       end
-      object miConfigurarEditor: TMenuItem
-        Caption = 'Configurar editor...'
-        OnClick = miConfigurarEditorClick
+      object miDefinirValoresDefault: TMenuItem
+        Caption = 'Definir todas como default'
+        OnClick = miDefinirValoresDefaultClick
       end
     end
     object miConsola: TMenuItem
       Caption = 'Consola'
       object miLimpiarConsola: TMenuItem
-        Caption = 'Limpiar consola'
+        Caption = 'Limpiar'
         OnClick = btnClearOutputClick
+      end
+    end
+    object miConfiguracion: TMenuItem
+      Caption = 'Configuración'
+      object miSoloPrecomentadas: TMenuItem
+        AutoCheck = True
+        Caption = 'Usar solo precomentadas con ::'
+        OnClick = miSoloPrecomentadasClick
+      end
+      object miConfigurarEditor: TMenuItem
+        Caption = 'Configurar editor...'
+        OnClick = miConfigurarEditorClick
       end
     end
   end

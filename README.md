@@ -9,8 +9,15 @@ Aplicacion Lazarus/Free Pascal para:
 
 ## Variables editables desde la GUI
 
-La aplicacion solo muestra en la GUI aquellas variables que esten marcadas con
-un comentario inmediatamente anterior en este formato:
+Por defecto, la GUI muestra todas las lineas con este formato:
+
+```bat
+set variable1=hola
+```
+
+Opcionalmente, desde `Configuracion -> Usar solo precomentadas con ::`, la app
+puede limitar la GUI solo a variables marcadas con un comentario inmediatamente
+anterior en este formato:
 
 ```bat
 ::variable1=hola
@@ -28,7 +35,7 @@ set variable1=hola
 set variable2=mundo
 ```
 
-En este caso:
+En ese modo:
 
 - `variable1` aparecera en la GUI
 - `variable2` no aparecera en la GUI
@@ -40,16 +47,20 @@ Si cambias `variable1` en la GUI a `chao`, el archivo `.bat` original quedara:
 set variable1=chao
 ```
 
-La linea `::variable1=hola` funciona como marca para indicar que esa variable
-puede editarse desde la interfaz.
+La linea `::variable1=hola` funciona como valor por defecto explicito para esa
+variable.
 
 ## Comportamiento actual de la GUI
 
-- `Restablecer` vuelve la variable a su valor por defecto y actualiza el `.bat`.
-- `Restablecer todas` vuelve todas las variables a sus valores por defecto y actualiza el `.bat`.
+- Se puede cargar un `.bat` con `Abrir...` o arrastrandolo sobre la aplicacion.
+- `Restablecer` solo aparece en variables que ya tienen `::NOMBRE=valor`.
+- `Restablecer todas` solo afecta variables que ya tienen `::NOMBRE=valor`.
+- Cada variable tiene una accion `+` para definir el valor actual como default.
+- `Definir todas como default` agrega o actualiza `::NOMBRE=valor` para todas las variables visibles.
 - La GUI muestra como maximo 10 variables editables.
 - Si el `.bat` tiene mas de 10 variables editables, aparece la advertencia `hay mas de 10 variables`.
 - El boton `Ejecutar` se ubica debajo de la ultima variable, alineado a la derecha.
+- La preferencia `Usar solo precomentadas con ::` se guarda en el `.ini`.
 
 ## Estructura
 
@@ -122,5 +133,4 @@ bash build.sh
 
 - La aplicacion recuerda el ultimo `.bat` cargado usando `target\batrun.ini`.
 - La ejecucion del script se hace en `cmd.exe` externo.
-- Si un `.bat` no tiene variables marcadas con `::NOMBRE=valor`, igual puede
-  ejecutarse, pero sin reemplazos desde la GUI.
+- Si `Usar solo precomentadas con ::` esta desactivado, tambien se muestran en la GUI las variables `set NOMBRE=valor` sin comentario previo.
