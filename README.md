@@ -57,6 +57,7 @@ puede editarse desde la interfaz.
 - `batrun.lpr`: punto de entrada
 - `uMain.pas`: logica principal
 - `uMain.lfm`: diseno del formulario
+- `build.sh`: entrypoint rapido para generar `target/batrun.exe`
 - `tools/ppc386-win32-wrapper.sh`: wrapper del compilador Win32/i386
 - `tools/write-fpc-win32-cfg.sh`: genera `target/fpc-win32.cfg`
 - `tools/build-win32.sh`: build reproducible de `Win32/i386`
@@ -78,7 +79,7 @@ C:\lazarus\lazbuild.exe .\batrun.lpi
 Flujo reproducible validado en este repo:
 
 ```bash
-bash tools/build-win32.sh
+bash build.sh
 ```
 
 El ejecutable se genera en:
@@ -89,6 +90,7 @@ target\batrun.exe
 
 Ese script:
 
+- delega en `tools/build-win32.sh`
 - genera `target/fpc-win32.cfg`
 - usa `tools/ppc386-win32-wrapper.sh`
 - usa `target/lazarus-pcp-win32` como configuracion local de Lazarus
@@ -107,7 +109,7 @@ sobrescribirlas con variables de entorno:
 BATRUN_PPC386=/ruta/al/ppc386 \
 BATRUN_FPC_WIN32_UNITS_ROOT=/ruta/a/app/units/i386-win32 \
 BATRUN_LAZARUS_DIR=/ruta/a/lazarus \
-bash tools/build-win32.sh
+bash build.sh
 ```
 
 ## Notas
