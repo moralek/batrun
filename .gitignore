@@ -1,0 +1,11 @@
+target/
+*.exe
+*.compiled
+*.o
+*.or
+*.ppu
+*.res
+*.lps
+*.dbg
+*.bak
+*.tmp
