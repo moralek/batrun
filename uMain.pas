@@ -26,20 +26,21 @@ type
   { TMainForm }
 
   TMainForm = class(TForm)
-    btnEditBatch: TButton;
-    btnExecute: TButton;
-    btnLoad: TButton;
+    btnEditBatch: TPanel;
+    btnExecute: TPanel;
+    btnLoad: TPanel;
     EditorDialog1: TOpenDialog;
     MainMenu1: TMainMenu;
     MemoOutput: TMemo;
     miArchivo: TMenuItem;
     miCargarBat: TMenuItem;
+    miConsola: TMenuItem;
     miConfigurarEditor: TMenuItem;
     miEditarBat: TMenuItem;
-    miLimpiarSalida: TMenuItem;
+    miLimpiarConsola: TMenuItem;
     miResetearValores: TMenuItem;
-    miSalida: TMenuItem;
     OpenDialog1: TOpenDialog;
+    pnlConsole: TPanel;
     pnlActions: TPanel;
     pnlRight: TPanel;
     ScrollBox1: TScrollBox;
@@ -60,6 +61,7 @@ type
     FBatchFileName: string;
     FConfigFileName: string;
     FEditorPath: string;
+    FExecuteIcon: TImage;
     FInitialLoadDone: Boolean;
     FLastBatchDir: string;
     FProcess: TProcess;
@@ -74,6 +76,7 @@ type
     procedure ClearVariableControls;
     function ConfigureEditor: Boolean;
     procedure CreateAppIcon;
+    procedure CreateExecuteIcon;
     function CmdQuote(const S: string): string;
     procedure EditBatchFile;
     function ExtractAssignment(const Line: string; out VarName, VarValue: string): Boolean;
@@ -146,9 +149,42 @@ begin
   MemoOutput.Font.Name := 'Consolas';
   MemoOutput.Font.Size := 10;
   pnlRight.Color := RGBToColor(232, 222, 204);
+  pnlActions.Color := RGBToColor(232, 222, 204);
+  ScrollBox1.Color := RGBToColor(232, 222, 204);
   StatusBar1.Color := RGBToColor(219, 205, 179);
   MemoOutput.Font.Color := RGBToColor(143, 255, 186);
+  btnLoad.Caption := 'Abrir...';
+  btnEditBatch.Caption := '✎ Editar';
+  btnLoad.Color := RGBToColor(245, 239, 226);
+  btnLoad.Alignment := taCenter;
+  btnLoad.BevelOuter := bvNone;
+  btnLoad.Cursor := crHandPoint;
+  btnLoad.ParentBackground := False;
+  btnLoad.Font.Name := 'Segoe UI';
+  btnLoad.Font.Size := 10;
+  btnLoad.Font.Color := RGBToColor(60, 49, 35);
+  btnEditBatch.Color := RGBToColor(245, 239, 226);
+  btnEditBatch.Alignment := taCenter;
+  btnEditBatch.BevelOuter := bvNone;
+  btnEditBatch.Cursor := crHandPoint;
+  btnEditBatch.ParentBackground := False;
+  btnEditBatch.Font.Name := 'Segoe UI';
+  btnEditBatch.Font.Size := 10;
+  btnEditBatch.Font.Color := RGBToColor(60, 49, 35);
+  btnExecute.Caption := '▶';
+  btnExecute.Font.Style := [fsBold];
+  btnExecute.Font.Size := 11;
+  btnExecute.Font.Name := 'Segoe UI';
+  btnExecute.Font.Color := RGBToColor(60, 49, 35);
+  btnExecute.Height := 66;
+  btnExecute.Width := 140;
+  btnExecute.Color := RGBToColor(219, 205, 179);
+  btnExecute.Alignment := taCenter;
+  btnExecute.BevelOuter := bvNone;
+  btnExecute.Cursor := crHandPoint;
+  btnExecute.ParentBackground := False;
   CreateAppIcon;
+  CreateExecuteIcon;
   btnExecute.Parent := ScrollBox1;
   btnExecute.Anchors := [akTop, akRight];
   LoadSettings;
@@ -203,7 +239,7 @@ end;
 procedure TMainForm.btnClearOutputClick(Sender: TObject);
 begin
   MemoOutput.Clear;
-  SetStatus('Salida limpiada');
+  SetStatus('Consola limpia');
 end;
 
 procedure TMainForm.btnExecuteClick(Sender: TObject);
@@ -340,6 +376,26 @@ begin
   finally
     Bmp.Free;
   end;
+end;
+
+procedure TMainForm.CreateExecuteIcon;
+begin
+  if Assigned(FExecuteIcon) then
+    FreeAndNil(FExecuteIcon);
+
+  FExecuteIcon := TImage.Create(btnExecute);
+  FExecuteIcon.Parent := btnExecute;
+  FExecuteIcon.Width := 40;
+  FExecuteIcon.Height := 40;
+  FExecuteIcon.Left := (btnExecute.Width - FExecuteIcon.Width) div 2;
+  FExecuteIcon.Top := (btnExecute.Height - FExecuteIcon.Height) div 2;
+  FExecuteIcon.Center := True;
+  FExecuteIcon.Stretch := True;
+  FExecuteIcon.Proportional := True;
+  FExecuteIcon.Transparent := True;
+  FExecuteIcon.Cursor := crHandPoint;
+  FExecuteIcon.Picture.Assign(Icon);
+  FExecuteIcon.OnClick := @btnExecuteClick;
 end;
 
 procedure TMainForm.ApplyGuiValuesToBatchFile;
@@ -515,9 +571,11 @@ var
   I: Integer;
   TopPos: Integer;
   LabelLeft: Integer;
+  ControlRight: Integer;
   ResetLeft: Integer;
   EditLeft: Integer;
   EditWidth: Integer;
+  ResetGap: Integer;
   LabelGap: Integer;
   ItemGap: Integer;
   TaggedName: string;
@@ -536,12 +594,14 @@ begin
   Lines := TStringList.Create;
   try
     Lines.LoadFromFile(FileName);
-    LabelLeft := 20;
-    ResetLeft := ScrollBox1.ClientWidth - 44;
+    LabelLeft := btnLoad.Left;
+    ControlRight := btnEditBatch.Left + btnEditBatch.Width;
+    ResetGap := 8;
+    ResetLeft := ControlRight - 24;
     if ResetLeft < 160 then
       ResetLeft := 160;
-    EditLeft := 20;
-    EditWidth := ScrollBox1.ClientWidth - (EditLeft * 2);
+    EditLeft := btnLoad.Left;
+    EditWidth := ResetLeft - ResetGap - EditLeft;
     if EditWidth < 280 then
       EditWidth := 280;
     LabelGap := 22;
@@ -574,6 +634,10 @@ begin
       Item.NameLabel.Caption := VarName;
       Item.NameLabel.Left := LabelLeft;
       Item.NameLabel.Top := TopPos + 2;
+      Item.NameLabel.Font.Name := 'Segoe UI';
+      Item.NameLabel.Font.Size := 10;
+      Item.NameLabel.Font.Style := [fsBold];
+      Item.NameLabel.Font.Color := RGBToColor(60, 49, 35);
 
       Item.ResetButton := TSpeedButton.Create(ScrollBox1);
       Item.ResetButton.Parent := ScrollBox1;
@@ -582,6 +646,7 @@ begin
       Item.ResetButton.ShowHint := True;
       Item.ResetButton.ParentShowHint := False;
       Item.ResetButton.Flat := True;
+      Item.ResetButton.Cursor := crHandPoint;
       Item.ResetButton.Width := 24;
       Item.ResetButton.Height := 24;
       Item.ResetButton.Left := ResetLeft;
@@ -596,6 +661,11 @@ begin
       Item.ValueEdit.Left := EditLeft;
       Item.ValueEdit.Top := TopPos + LabelGap;
       Item.ValueEdit.Width := EditWidth;
+      Item.ValueEdit.Color := RGBToColor(251, 247, 239);
+      Item.ValueEdit.BorderStyle := bsSingle;
+      Item.ValueEdit.Font.Name := 'Segoe UI';
+      Item.ValueEdit.Font.Size := 10;
+      Item.ValueEdit.Font.Color := RGBToColor(60, 49, 35);
       Item.ValueEdit.Anchors := [akLeft, akTop, akRight];
 
       FVariables.Add(Item);
@@ -620,6 +690,7 @@ end;
 procedure TMainForm.PositionExecuteButton;
 var
   LastBottom: Integer;
+  ControlRight: Integer;
 begin
   if FVariables.Count > 0 then
     LastBottom := FVariables[FVariables.Count - 1].ValueEdit.Top +
@@ -627,10 +698,16 @@ begin
   else
     LastBottom := 20;
 
-  btnExecute.Left := ScrollBox1.ClientWidth - btnExecute.Width - 20;
+  ControlRight := btnEditBatch.Left + btnEditBatch.Width;
+  btnExecute.Left := ControlRight - btnExecute.Width;
   if btnExecute.Left < 20 then
     btnExecute.Left := 20;
   btnExecute.Top := LastBottom + 20;
+  if Assigned(FExecuteIcon) then
+  begin
+    FExecuteIcon.Left := (btnExecute.Width - FExecuteIcon.Width) div 2;
+    FExecuteIcon.Top := (btnExecute.Height - FExecuteIcon.Height) div 2;
+  end;
 end;
 
 procedure TMainForm.LoadSettings;
