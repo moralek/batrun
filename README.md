@@ -5,7 +5,7 @@ Aplicacion Lazarus/Free Pascal para:
 - cargar un archivo `.bat`
 - detectar variables `set NOMBRE=valor`
 - editar esos valores en pantalla
-- ejecutar el `.bat` sin modificar el archivo original
+- ejecutar el `.bat`
 
 ## Variables editables desde la GUI
 
@@ -43,27 +43,71 @@ set variable1=chao
 La linea `::variable1=hola` funciona como marca para indicar que esa variable
 puede editarse desde la interfaz.
 
+## Comportamiento actual de la GUI
+
+- `Restablecer` vuelve la variable a su valor por defecto y actualiza el `.bat`.
+- `Restablecer todas` vuelve todas las variables a sus valores por defecto y actualiza el `.bat`.
+- La GUI muestra como maximo 10 variables editables.
+- Si el `.bat` tiene mas de 10 variables editables, aparece la advertencia `hay mas de 10 variables`.
+- El boton `Ejecutar` se ubica debajo de la ultima variable, alineado a la derecha.
+
 ## Estructura
 
 - `batrun.lpi`: proyecto Lazarus
 - `batrun.lpr`: punto de entrada
 - `uMain.pas`: logica principal
 - `uMain.lfm`: diseno del formulario
+- `tools/ppc386-win32-wrapper.sh`: wrapper del compilador Win32/i386
+- `tools/write-fpc-win32-cfg.sh`: genera `target/fpc-win32.cfg`
+- `tools/build-win32.sh`: build reproducible de `Win32/i386`
 - `bat/`: carpeta para `.bat` de prueba
 - `target/`: salida de compilacion
 
 ## Compilacion
 
-Compilar desde Lazarus abriendo `batrun.lpi`, o por linea de comandos con:
+Compilar desde Lazarus abriendo `batrun.lpi`, o por linea de comandos.
+
+### Windows desde Lazarus
 
 ```powershell
 C:\lazarus\lazbuild.exe .\batrun.lpi
+```
+
+### Win32 desde Linux con cross-compiler
+
+Flujo reproducible validado en este repo:
+
+```bash
+bash tools/build-win32.sh
 ```
 
 El ejecutable se genera en:
 
 ```text
 target\batrun.exe
+```
+
+Ese script:
+
+- genera `target/fpc-win32.cfg`
+- usa `tools/ppc386-win32-wrapper.sh`
+- usa `target/lazarus-pcp-win32` como configuracion local de Lazarus
+- genera `target/batrun.exe`
+
+Prerequisitos esperados por defecto para el build Win32 desde Linux:
+
+- compilador `ppc386` en `/tmp/fpc-i386-root/usr/lib/i386-linux-gnu/fpc/3.2.2/ppc386`
+- unidades Win32 de FPC en `/tmp/fpc-win32-manual/app/units/i386-win32`
+- Lazarus en `/usr/lib/lazarus/default`
+
+Si otra instancia de Codex necesita rehacer el build y esas rutas cambian, puede
+sobrescribirlas con variables de entorno:
+
+```bash
+BATRUN_PPC386=/ruta/al/ppc386 \
+BATRUN_FPC_WIN32_UNITS_ROOT=/ruta/a/app/units/i386-win32 \
+BATRUN_LAZARUS_DIR=/ruta/a/lazarus \
+bash tools/build-win32.sh
 ```
 
 ## Notas

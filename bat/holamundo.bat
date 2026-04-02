@@ -1,6 +1,6 @@
 @echo off
 ::variable1=hola
-set variable1=hola s
+set variable1=hola
 
 ::variable2=mundo
 set variable2=mundo

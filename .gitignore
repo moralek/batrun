@@ -1,4 +1,7 @@
 target/
+.codex
+bat/*.7z
+bat/*.bak
 *.exe
 *.compiled
 *.o

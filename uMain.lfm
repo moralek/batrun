@@ -1,6 +1,7 @@
 object MainForm: TMainForm
   Left = 259
   Height = 860
+  Menu = MainMenu1
   Top = 324
   Width = 1664
   Caption = 'BAT Runner'
@@ -10,11 +11,12 @@ object MainForm: TMainForm
   LCLVersion = '4.6.0.0'
   OnCreate = FormCreate
   OnDestroy = FormDestroy
+  OnShow = FormShow
   object MemoOutput: TMemo
     Left = 8
     Height = 821
     Top = 8
-    Width = 1188
+    Width = 1052
     Align = alClient
     BorderSpacing.Around = 8
     ReadOnly = True
@@ -23,7 +25,7 @@ object MainForm: TMainForm
     WordWrap = False
   end
   object Splitter1: TSplitter
-    Left = 1204
+    Left = 1068
     Height = 837
     Top = 0
     Width = 8
@@ -31,27 +33,27 @@ object MainForm: TMainForm
     ResizeAnchor = akRight
   end
   object pnlRight: TPanel
-    Left = 1212
+    Left = 1076
     Height = 837
     Top = 0
-    Width = 452
+    Width = 588
     Align = alRight
     BevelOuter = bvNone
     ClientHeight = 837
-    ClientWidth = 452
+    ClientWidth = 588
     Color = 16053492
     ParentBackground = False
     ParentColor = False
     TabOrder = 1
     object pnlActions: TPanel
       Left = 0
-      Height = 88
+      Height = 84
       Top = 0
-      Width = 452
+      Width = 588
       Align = alTop
       BevelOuter = bvNone
-      ClientHeight = 88
-      ClientWidth = 452
+      ClientHeight = 84
+      ClientWidth = 588
       Color = 16053492
       ParentBackground = False
       ParentColor = False
@@ -60,107 +62,47 @@ object MainForm: TMainForm
         Left = 16
         Height = 36
         Top = 16
-        Width = 204
+        Width = 270
         Caption = 'Cargar .bat'
         TabOrder = 0
         OnClick = btnLoadClick
       end
-      object btnExecute: TButton
-        Left = 228
+      object btnEditBatch: TButton
+        Left = 302
         Height = 36
         Top = 16
-        Width = 204
-        Caption = 'Ejecutar'
+        Width = 270
+        Caption = 'Editar .bat'
         TabOrder = 1
-        OnClick = btnExecuteClick
-      end
-      object btnClearOutput: TSpeedButton
-        Left = 16
-        Height = 32
-        Hint = 'Limpiar salida'
-        Top = 52
-        Width = 120
-        Caption = 'Limpiar'
-        Flat = True
-        ShowHint = True
-        ParentShowHint = False
-        OnClick = btnClearOutputClick
-      end
-    end
-    object pnlTop: TPanel
-      Left = 0
-      Height = 104
-      Top = 88
-      Width = 452
-      Align = alTop
-      BevelOuter = bvNone
-      ClientHeight = 104
-      ClientWidth = 452
-      Color = 15329769
-      ParentBackground = False
-      ParentColor = False
-      TabOrder = 1
-      object pnlVarsHeader: TPanel
-        Left = 16
-        Height = 88
-        Top = 8
-        Width = 420
-        BevelOuter = bvNone
-        Color = 14738774
-        ParentBackground = False
-        ParentColor = False
-        TabOrder = 0
-        object lblPanelTitle: TLabel
-          Left = 16
-          Height = 22
-          Top = 12
-          Width = 78
-          Caption = 'Variables'
-          Font.CharSet = DEFAULT_CHARSET
-          Font.Color = 1710618
-          Font.Height = -17
-          Font.Name = 'Segoe UI Semibold'
-          Font.Pitch = fpVariable
-          Font.Quality = fqCleartypeNatural
-          Font.Style = []
-          ParentColor = False
-          ParentFont = False
-        end
-        object lblPanelHint: TLabel
-          Left = 16
-          Height = 34
-          Top = 40
-          Width = 250
-          Caption = 'Edita solo variables marcadas con comentario previo ::NOMBRE=valor'
-          WordWrap = True
-          Font.CharSet = DEFAULT_CHARSET
-          Font.Color = 5789784
-          Font.Height = -12
-          Font.Name = 'Segoe UI'
-          Font.Pitch = fpVariable
-          Font.Quality = fqCleartypeNatural
-          Font.Style = []
-          ParentColor = False
-          ParentFont = False
-        end
+        OnClick = btnEditBatchClick
       end
     end
     object ScrollBox1: TScrollBox
       Left = 0
-      Height = 645
-      Top = 192
-      Width = 437
+      Height = 753
+      Top = 84
+      Width = 588
       HorzScrollBar.Page = 1
       HorzScrollBar.Tracking = True
       VertScrollBar.Page = 1
       VertScrollBar.Tracking = True
       Align = alClient
-      BorderSpacing.Right = 15
       BorderStyle = bsNone
       Color = 16053492
+      OnResize = ScrollBox1Resize
       ParentBackground = False
       ParentColor = False
       TabOrder = 1
+      object btnExecute: TButton
+        Left = 302
+        Height = 36
+        Top = 16
+        Width = 270
+        Anchors = [akTop, akRight]
+        Caption = 'Ejecutar'
+        TabOrder = 0
+        OnClick = btnExecuteClick
+      end
     end
   end
   object StatusBar1: TStatusBar
@@ -174,5 +116,39 @@ object MainForm: TMainForm
   object OpenDialog1: TOpenDialog
     Left = 656
     Top = 16
+  end
+  object EditorDialog1: TOpenDialog
+    Left = 760
+    Top = 16
+  end
+  object MainMenu1: TMainMenu
+    Left = 864
+    Top = 16
+    object miArchivo: TMenuItem
+      Caption = 'Archivo'
+      object miCargarBat: TMenuItem
+        Caption = 'Cargar .bat'
+        OnClick = btnLoadClick
+      end
+      object miEditarBat: TMenuItem
+        Caption = 'Editar .bat'
+        OnClick = btnEditBatchClick
+      end
+      object miResetearValores: TMenuItem
+        Caption = 'Restablecer todas'
+        OnClick = miResetearValoresClick
+      end
+      object miConfigurarEditor: TMenuItem
+        Caption = 'Configurar editor...'
+        OnClick = miConfigurarEditorClick
+      end
+    end
+    object miSalida: TMenuItem
+      Caption = 'Salida'
+      object miLimpiarSalida: TMenuItem
+        Caption = 'Limpiar'
+        OnClick = btnClearOutputClick
+      end
+    end
   end
 end

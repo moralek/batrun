@@ -6,12 +6,17 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls,
-  Buttons, ComCtrls, Process, fgl, Windows, DateUtils, IniFiles;
+  Buttons, ComCtrls, Process, fgl, Windows, DateUtils, IniFiles, Menus;
+
+const
+  MAX_GUI_VARIABLES = 10;
 
 type
   TVariableItem = class
   public
+    DefaultValue: string;
     VarName: string;
+    ResetButton: TSpeedButton;
     ValueEdit: TEdit;
     NameLabel: TLabel;
   end;
@@ -21,29 +26,41 @@ type
   { TMainForm }
 
   TMainForm = class(TForm)
-    btnClearOutput: TSpeedButton;
+    btnEditBatch: TButton;
     btnExecute: TButton;
     btnLoad: TButton;
-    lblPanelHint: TLabel;
-    lblPanelTitle: TLabel;
+    EditorDialog1: TOpenDialog;
+    MainMenu1: TMainMenu;
     MemoOutput: TMemo;
+    miArchivo: TMenuItem;
+    miCargarBat: TMenuItem;
+    miConfigurarEditor: TMenuItem;
+    miEditarBat: TMenuItem;
+    miLimpiarSalida: TMenuItem;
+    miResetearValores: TMenuItem;
+    miSalida: TMenuItem;
     OpenDialog1: TOpenDialog;
     pnlActions: TPanel;
     pnlRight: TPanel;
-    pnlTop: TPanel;
-    pnlVarsHeader: TPanel;
     ScrollBox1: TScrollBox;
     Splitter1: TSplitter;
     StatusBar1: TStatusBar;
+    procedure btnEditBatchClick(Sender: TObject);
     procedure btnExecuteClick(Sender: TObject);
     procedure btnLoadClick(Sender: TObject);
     procedure btnClearOutputClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure miConfigurarEditorClick(Sender: TObject);
+    procedure miResetearValoresClick(Sender: TObject);
     procedure ProcessTimerTimer(Sender: TObject);
+    procedure ScrollBox1Resize(Sender: TObject);
   private
     FBatchFileName: string;
     FConfigFileName: string;
+    FEditorPath: string;
+    FInitialLoadDone: Boolean;
     FLastBatchDir: string;
     FProcess: TProcess;
     FProcessStart: TDateTime;
@@ -53,14 +70,19 @@ type
     procedure ApplyGuiValuesToBatchFile;
     procedure BringProcessWindowToFront(const APID: DWORD);
     procedure BringSelfToFront;
+    procedure btnResetVariableClick(Sender: TObject);
     procedure ClearVariableControls;
+    function ConfigureEditor: Boolean;
     procedure CreateAppIcon;
     function CmdQuote(const S: string): string;
+    procedure EditBatchFile;
     function ExtractAssignment(const Line: string; out VarName, VarValue: string): Boolean;
     function ExtractTaggedDefault(const Line: string; out VarName, VarValue: string): Boolean;
     function FormatElapsed(const AStart, AFinish: TDateTime): string;
     procedure LoadBatchVariables(const FileName: string);
+    procedure PositionExecuteButton;
     procedure LoadSettings;
+    procedure ResetVariablesToDefault;
     procedure SaveSettings;
     procedure SetStatus(const S: string);
     procedure UpdateRunState(const ARunning: Boolean);
@@ -103,6 +125,8 @@ begin
   FProcess := nil;
   FBatchFileName := '';
   FConfigFileName := ChangeFileExt(Application.ExeName, '.ini');
+  FEditorPath := '';
+  FInitialLoadDone := False;
   FLastBatchDir := '';
   FProcessStart := 0;
   FProcessTimer := TTimer.Create(Self);
@@ -113,17 +137,22 @@ begin
   OpenDialog1.Filter := 'Batch files|*.bat|All files|*.*';
   OpenDialog1.Options := OpenDialog1.Options + [ofFileMustExist, ofPathMustExist];
   OpenDialog1.InitialDir := FStartupDir;
+  EditorDialog1.Filter := 'Aplicaciones|*.exe|Todos los archivos|*.*';
+  EditorDialog1.Options := EditorDialog1.Options + [ofFileMustExist, ofPathMustExist];
+  EditorDialog1.InitialDir := FStartupDir;
   Color := RGBToColor(245, 239, 226);
   MemoOutput.Color := RGBToColor(17, 20, 24);
   MemoOutput.Font.Color := RGBToColor(143, 255, 186);
   MemoOutput.Font.Name := 'Consolas';
   MemoOutput.Font.Size := 10;
   pnlRight.Color := RGBToColor(232, 222, 204);
-  pnlTop.Color := RGBToColor(219, 205, 179);
   StatusBar1.Color := RGBToColor(219, 205, 179);
   MemoOutput.Font.Color := RGBToColor(143, 255, 186);
   CreateAppIcon;
+  btnExecute.Parent := ScrollBox1;
+  btnExecute.Anchors := [akTop, akRight];
   LoadSettings;
+  PositionExecuteButton;
   SetStatus('Listo');
   UpdateRunState(False);
 end;
@@ -134,6 +163,15 @@ begin
   FProcessTimer.Enabled := False;
   FreeAndNil(FProcess);
   FVariables.Free;
+end;
+
+procedure TMainForm.FormShow(Sender: TObject);
+begin
+  if FInitialLoadDone then
+    Exit;
+  FInitialLoadDone := True;
+  if FileExists(FBatchFileName) then
+    LoadBatchVariables(FBatchFileName);
 end;
 
 procedure TMainForm.btnLoadClick(Sender: TObject);
@@ -152,6 +190,11 @@ begin
     LoadBatchVariables(OpenDialog1.FileName);
 end;
 
+procedure TMainForm.btnEditBatchClick(Sender: TObject);
+begin
+  EditBatchFile;
+end;
+
 procedure TMainForm.SetStatus(const S: string);
 begin
   StatusBar1.SimpleText := S;
@@ -160,6 +203,7 @@ end;
 procedure TMainForm.btnClearOutputClick(Sender: TObject);
 begin
   MemoOutput.Clear;
+  SetStatus('Salida limpiada');
 end;
 
 procedure TMainForm.btnExecuteClick(Sender: TObject);
@@ -231,8 +275,38 @@ var
   I: Integer;
 begin
   for I := ScrollBox1.ControlCount - 1 downto 0 do
-    ScrollBox1.Controls[I].Free;
+    if ScrollBox1.Controls[I] <> btnExecute then
+      ScrollBox1.Controls[I].Free;
   FVariables.Clear;
+end;
+
+procedure TMainForm.btnResetVariableClick(Sender: TObject);
+var
+  Item: TVariableItem;
+begin
+  Item := TVariableItem(PtrUInt((Sender as TSpeedButton).Tag));
+  if Item = nil then
+    Exit;
+  Item.ValueEdit.Text := Item.DefaultValue;
+  ApplyGuiValuesToBatchFile;
+  SetStatus('Variable restablecida: ' + Item.VarName);
+end;
+
+function TMainForm.ConfigureEditor: Boolean;
+begin
+  if FileExists(FEditorPath) then
+    EditorDialog1.FileName := FEditorPath
+  else
+    EditorDialog1.FileName := '';
+
+  if EditorDialog1.Execute then
+  begin
+    FEditorPath := EditorDialog1.FileName;
+    SetStatus('Editor configurado');
+    Result := True;
+  end
+  else
+    Result := False;
 end;
 
 procedure TMainForm.CreateAppIcon;
@@ -344,6 +418,35 @@ begin
   Result := '"' + StringReplace(S, '"', '\"', [rfReplaceAll]) + '"';
 end;
 
+procedure TMainForm.EditBatchFile;
+var
+  Proc: TProcess;
+begin
+  if FBatchFileName = '' then
+  begin
+    MessageDlg('Debe cargar un archivo .bat.', mtWarning, [mbOK], 0);
+    Exit;
+  end;
+
+  if (FEditorPath = '') or (not FileExists(FEditorPath)) then
+  begin
+    MessageDlg('Primero configura el editor para abrir el .bat.', mtInformation, [mbOK], 0);
+    if not ConfigureEditor then
+      Exit;
+  end;
+
+  Proc := TProcess.Create(nil);
+  try
+    Proc.Executable := FEditorPath;
+    Proc.Parameters.Add(FBatchFileName);
+    Proc.Options := [];
+    Proc.Execute;
+    SetStatus('Abierto en editor');
+  finally
+    Proc.Free;
+  end;
+end;
+
 function TMainForm.FormatElapsed(const AStart, AFinish: TDateTime): string;
 var
   TotalSeconds: Int64;
@@ -411,11 +514,19 @@ var
   Lines: TStringList;
   I: Integer;
   TopPos: Integer;
+  LabelLeft: Integer;
+  ResetLeft: Integer;
+  EditLeft: Integer;
+  EditWidth: Integer;
+  LabelGap: Integer;
+  ItemGap: Integer;
   TaggedName: string;
   TaggedValue: string;
   VarName: string;
   VarValue: string;
   Item: TVariableItem;
+  TotalEditableVars: Integer;
+  WarnTooManyVariables: Boolean;
 begin
   ClearVariableControls;
   FBatchFileName := FileName;
@@ -425,7 +536,19 @@ begin
   Lines := TStringList.Create;
   try
     Lines.LoadFromFile(FileName);
-    TopPos := 12;
+    LabelLeft := 20;
+    ResetLeft := ScrollBox1.ClientWidth - 44;
+    if ResetLeft < 160 then
+      ResetLeft := 160;
+    EditLeft := 20;
+    EditWidth := ScrollBox1.ClientWidth - (EditLeft * 2);
+    if EditWidth < 280 then
+      EditWidth := 280;
+    LabelGap := 22;
+    ItemGap := 16;
+    TopPos := 20;
+    TotalEditableVars := 0;
+    WarnTooManyVariables := False;
 
     for I := 1 to Lines.Count - 1 do
     begin
@@ -435,37 +558,79 @@ begin
         Continue;
       if not SameText(TaggedName, VarName) then
         Continue;
+      Inc(TotalEditableVars);
+      if FVariables.Count >= MAX_GUI_VARIABLES then
+      begin
+        WarnTooManyVariables := True;
+        Continue;
+      end;
 
       Item := TVariableItem.Create;
+      Item.DefaultValue := TaggedValue;
       Item.VarName := VarName;
 
       Item.NameLabel := TLabel.Create(ScrollBox1);
       Item.NameLabel.Parent := ScrollBox1;
       Item.NameLabel.Caption := VarName;
-      Item.NameLabel.Left := 12;
-      Item.NameLabel.Top := TopPos + 4;
-      Item.NameLabel.Width := 180;
+      Item.NameLabel.Left := LabelLeft;
+      Item.NameLabel.Top := TopPos + 2;
+
+      Item.ResetButton := TSpeedButton.Create(ScrollBox1);
+      Item.ResetButton.Parent := ScrollBox1;
+      Item.ResetButton.Caption := '↺';
+      Item.ResetButton.Hint := 'Restablecer ' + VarName;
+      Item.ResetButton.ShowHint := True;
+      Item.ResetButton.ParentShowHint := False;
+      Item.ResetButton.Flat := True;
+      Item.ResetButton.Width := 24;
+      Item.ResetButton.Height := 24;
+      Item.ResetButton.Left := ResetLeft;
+      Item.ResetButton.Top := TopPos;
+      Item.ResetButton.Anchors := [akTop, akRight];
+      Item.ResetButton.Tag := PtrInt(Item);
+      Item.ResetButton.OnClick := @btnResetVariableClick;
 
       Item.ValueEdit := TEdit.Create(ScrollBox1);
       Item.ValueEdit.Parent := ScrollBox1;
       Item.ValueEdit.Text := VarValue;
-      Item.ValueEdit.Left := 200;
-      Item.ValueEdit.Top := TopPos;
-      Item.ValueEdit.Width := 420;
+      Item.ValueEdit.Left := EditLeft;
+      Item.ValueEdit.Top := TopPos + LabelGap;
+      Item.ValueEdit.Width := EditWidth;
       Item.ValueEdit.Anchors := [akLeft, akTop, akRight];
 
       FVariables.Add(Item);
-      Inc(TopPos, 32);
+      Inc(TopPos, LabelGap + Item.ValueEdit.Height + ItemGap);
     end;
 
   finally
     Lines.Free;
   end;
 
+  PositionExecuteButton;
+
   if FVariables.Count = 0 then
     SetStatus('Sin variables editables')
   else
     SetStatus(IntToStr(FVariables.Count) + ' variable(s) editable(s)');
+
+  if WarnTooManyVariables or (TotalEditableVars > MAX_GUI_VARIABLES) then
+    MessageDlg('hay mas de 10 variables', mtWarning, [mbOK], 0);
+end;
+
+procedure TMainForm.PositionExecuteButton;
+var
+  LastBottom: Integer;
+begin
+  if FVariables.Count > 0 then
+    LastBottom := FVariables[FVariables.Count - 1].ValueEdit.Top +
+      FVariables[FVariables.Count - 1].ValueEdit.Height
+  else
+    LastBottom := 20;
+
+  btnExecute.Left := ScrollBox1.ClientWidth - btnExecute.Width - 20;
+  if btnExecute.Left < 20 then
+    btnExecute.Left := 20;
+  btnExecute.Top := LastBottom + 20;
 end;
 
 procedure TMainForm.LoadSettings;
@@ -475,15 +640,34 @@ var
 begin
   Ini := TIniFile.Create(FConfigFileName);
   try
+    FEditorPath := Ini.ReadString('General', 'EditorPath', '');
     FLastBatchDir := Ini.ReadString('General', 'LastBatchDir', FStartupDir);
     LastFile := Ini.ReadString('General', 'LastBatchFile', '');
-    if FileExists(LastFile) then
-      LoadBatchVariables(LastFile)
-    else
-      FBatchFileName := LastFile;
+    FBatchFileName := LastFile;
   finally
     Ini.Free;
   end;
+end;
+
+procedure TMainForm.ResetVariablesToDefault;
+var
+  Item: TVariableItem;
+begin
+  if FVariables.Count = 0 then
+  begin
+    SetStatus('Sin variables para restablecer');
+    Exit;
+  end;
+
+  for Item in FVariables do
+    Item.ValueEdit.Text := Item.DefaultValue;
+  ApplyGuiValuesToBatchFile;
+  SetStatus('Valores restablecidos');
+end;
+
+procedure TMainForm.ScrollBox1Resize(Sender: TObject);
+begin
+  PositionExecuteButton;
 end;
 
 procedure TMainForm.SaveSettings;
@@ -492,6 +676,7 @@ var
 begin
   Ini := TIniFile.Create(FConfigFileName);
   try
+    Ini.WriteString('General', 'EditorPath', FEditorPath);
     Ini.WriteString('General', 'LastBatchDir', FLastBatchDir);
     Ini.WriteString('General', 'LastBatchFile', FBatchFileName);
   finally
@@ -499,10 +684,21 @@ begin
   end;
 end;
 
+procedure TMainForm.miConfigurarEditorClick(Sender: TObject);
+begin
+  ConfigureEditor;
+end;
+
+procedure TMainForm.miResetearValoresClick(Sender: TObject);
+begin
+  ResetVariablesToDefault;
+end;
+
 procedure TMainForm.UpdateRunState(const ARunning: Boolean);
 begin
   btnExecute.Enabled := not ARunning;
   btnLoad.Enabled := not ARunning;
+  btnEditBatch.Enabled := not ARunning;
 end;
 
 end.
