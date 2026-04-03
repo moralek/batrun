@@ -451,6 +451,7 @@ begin
       DestRect.Bottom := 64;
       Bmp.Canvas.StretchDraw(DestRect, Png);
       Icon.Assign(Bmp);
+      Application.Icon.Assign(Icon);
     finally
       Png.Free;
       Bmp.Free;
@@ -502,6 +503,7 @@ begin
     Bmp.Canvas.Ellipse(35, 24, 39, 29);
 
     Icon.Assign(Bmp);
+    Application.Icon.Assign(Icon);
   finally
     Bmp.Free;
   end;
