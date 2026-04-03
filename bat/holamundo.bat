@@ -5,7 +5,6 @@ set variable1=hola
 ::variable2=mundo
 set variable2=mundo
 set /a var=1+1
-::variable3=variable3
 set variable3=variable3
 set variable4=variable4
 set variable5=variable5

@@ -429,29 +429,77 @@ end;
 procedure TMainForm.CreateAppIcon;
 var
   Bmp: Graphics.TBitmap;
-  P: array[0..11] of TPoint;
+  Png: TPortableNetworkGraphic;
+  P: array[0..19] of TPoint;
+  IconFileName: string;
+  DestRect: TRect;
 begin
+  IconFileName := ExtractFilePath(Application.ExeName) + 'bat.png';
+  if not FileExists(IconFileName) then
+    IconFileName := ExpandFileName(ExtractFilePath(Application.ExeName) + '..\bat.png');
+
+  if FileExists(IconFileName) then
+  begin
+    Bmp := Graphics.TBitmap.Create;
+    Png := TPortableNetworkGraphic.Create;
+    try
+      Png.LoadFromFile(IconFileName);
+      Bmp.SetSize(64, 64);
+      DestRect.Left := 0;
+      DestRect.Top := 0;
+      DestRect.Right := 64;
+      DestRect.Bottom := 64;
+      Bmp.Canvas.StretchDraw(DestRect, Png);
+      Icon.Assign(Bmp);
+    finally
+      Png.Free;
+      Bmp.Free;
+    end;
+    Exit;
+  end;
+
   Bmp := Graphics.TBitmap.Create;
   try
     Bmp.SetSize(64, 64);
     Bmp.Canvas.Brush.Color := RGBToColor(219, 205, 179);
     Bmp.Canvas.FillRect(0, 0, 64, 64);
 
-    Bmp.Canvas.Pen.Style := psClear;
-    Bmp.Canvas.Brush.Color := RGBToColor(25, 28, 33);
-    P[0].X := 4;  P[0].Y := 26;
-    P[1].X := 14; P[1].Y := 16;
-    P[2].X := 22; P[2].Y := 8;
-    P[3].X := 26; P[3].Y := 20;
-    P[4].X := 32; P[4].Y := 24;
-    P[5].X := 38; P[5].Y := 20;
-    P[6].X := 42; P[6].Y := 8;
-    P[7].X := 50; P[7].Y := 16;
-    P[8].X := 60; P[8].Y := 26;
-    P[9].X := 48; P[9].Y := 36;
-    P[10].X := 32; P[10].Y := 56;
-    P[11].X := 16; P[11].Y := 36;
+    Bmp.Canvas.Pen.Style := psSolid;
+    Bmp.Canvas.Pen.Color := RGBToColor(25, 28, 33);
+    Bmp.Canvas.Pen.Width := 2;
+    Bmp.Canvas.Brush.Color := RGBToColor(48, 49, 51);
+    P[0].X := 2;  P[0].Y := 24;
+    P[1].X := 7;  P[1].Y := 20;
+    P[2].X := 14; P[2].Y := 17;
+    P[3].X := 20; P[3].Y := 18;
+    P[4].X := 23; P[4].Y := 27;
+    P[5].X := 26; P[5].Y := 33;
+    P[6].X := 29; P[6].Y := 36;
+    P[7].X := 29; P[7].Y := 31;
+    P[8].X := 32; P[8].Y := 33;
+    P[9].X := 35; P[9].Y := 31;
+    P[10].X := 35; P[10].Y := 36;
+    P[11].X := 38; P[11].Y := 33;
+    P[12].X := 41; P[12].Y := 27;
+    P[13].X := 44; P[13].Y := 18;
+    P[14].X := 50; P[14].Y := 17;
+    P[15].X := 57; P[15].Y := 20;
+    P[16].X := 62; P[16].Y := 24;
+    P[17].X := 56; P[17].Y := 24;
+    P[18].X := 56; P[18].Y := 32;
+    P[19].X := 48; P[19].Y := 32;
     Bmp.Canvas.Polygon(P);
+
+    Bmp.Canvas.Brush.Color := RGBToColor(219, 205, 179);
+    Bmp.Canvas.Pen.Color := RGBToColor(219, 205, 179);
+    Bmp.Canvas.Ellipse(12, 31, 28, 43);
+    Bmp.Canvas.Ellipse(24, 33, 40, 49);
+    Bmp.Canvas.Ellipse(36, 31, 52, 43);
+
+    Bmp.Canvas.Brush.Color := RGBToColor(143, 255, 186);
+    Bmp.Canvas.Pen.Color := RGBToColor(143, 255, 186);
+    Bmp.Canvas.Ellipse(29, 24, 33, 29);
+    Bmp.Canvas.Ellipse(35, 24, 39, 29);
 
     Icon.Assign(Bmp);
   finally
