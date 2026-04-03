@@ -18,6 +18,7 @@ type
     DefineDefaultButton: TSpeedButton;
     HasTaggedDefault: Boolean;
     VarName: string;
+    RemoveDefaultButton: TSpeedButton;
     ResetButton: TSpeedButton;
     ValueEdit: TEdit;
     NameLabel: TLabel;
@@ -40,6 +41,7 @@ type
     miConfiguracion: TMenuItem;
     miConfigurarEditor: TMenuItem;
     miDefinirValoresDefault: TMenuItem;
+    miEliminarValoresDefault: TMenuItem;
     miEditarBat: TMenuItem;
     miLimpiarConsola: TMenuItem;
     miSalir: TMenuItem;
@@ -66,6 +68,7 @@ type
     procedure FormShow(Sender: TObject);
     procedure miConfigurarEditorClick(Sender: TObject);
     procedure miDefinirValoresDefaultClick(Sender: TObject);
+    procedure miEliminarValoresDefaultClick(Sender: TObject);
     procedure miResetearValoresClick(Sender: TObject);
     procedure miSalirClick(Sender: TObject);
     procedure miSoloPrecomentadasClick(Sender: TObject);
@@ -76,6 +79,7 @@ type
     FConfigFileName: string;
     FEditorPath: string;
     FExecuteIcon: TImage;
+    FExecuteLabel: TLabel;
     FInitialLoadDone: Boolean;
     FLastBatchDir: string;
     FOnlyPrecommentedVariables: Boolean;
@@ -89,6 +93,7 @@ type
     procedure BringProcessWindowToFront(const APID: DWORD);
     procedure BringSelfToFront;
     procedure btnDefineDefaultClick(Sender: TObject);
+    procedure btnRemoveDefaultClick(Sender: TObject);
     procedure btnResetVariableClick(Sender: TObject);
     procedure ClearVariableControls;
     function ConfigureEditor: Boolean;
@@ -108,6 +113,8 @@ type
     procedure LoadBatchVariables(const FileName: string);
     procedure PositionExecuteButton;
     procedure LoadSettings;
+    procedure RemoveVisibleVariableDefaults;
+    procedure RemoveVariableDefault(AItem: TVariableItem);
     procedure ResetVariablesToDefault;
     procedure SaveSettings;
     procedure SetStatus(const S: string);
@@ -383,6 +390,19 @@ begin
   SetStatus('Default definido: ' + VarName);
 end;
 
+procedure TMainForm.btnRemoveDefaultClick(Sender: TObject);
+var
+  Item: TVariableItem;
+  VarName: string;
+begin
+  Item := TVariableItem(PtrUInt((Sender as TSpeedButton).Tag));
+  if Item = nil then
+    Exit;
+  VarName := Item.VarName;
+  RemoveVariableDefault(Item);
+  SetStatus('Default eliminado: ' + VarName);
+end;
+
 function TMainForm.ConfigureEditor: Boolean;
 begin
   if FileExists(FEditorPath) then
@@ -441,6 +461,9 @@ end;
 
 procedure TMainForm.CreateExecuteIcon;
 begin
+  if Assigned(FExecuteLabel) then
+    FreeAndNil(FExecuteLabel);
+
   if Assigned(FExecuteIcon) then
     FreeAndNil(FExecuteIcon);
 
@@ -455,6 +478,17 @@ begin
   FExecuteIcon.ShowHint := True;
   FExecuteIcon.OnClick := @btnExecuteClick;
   FExecuteIcon.Picture.Assign(Icon);
+
+  FExecuteLabel := TLabel.Create(btnExecute);
+  FExecuteLabel.Parent := btnExecute;
+  FExecuteLabel.Caption := 'RUN!';
+  FExecuteLabel.Font.Assign(btnExecute.Font);
+  FExecuteLabel.Font.Style := [fsBold];
+  FExecuteLabel.Font.Color := btnExecute.Font.Color;
+  FExecuteLabel.Transparent := True;
+  FExecuteLabel.Cursor := crHandPoint;
+  FExecuteLabel.OnClick := @btnExecuteClick;
+
   LayoutExecuteIcon;
 end;
 
@@ -637,8 +671,13 @@ end;
 procedure TMainForm.LayoutExecuteIcon;
 var
   IconSize: Integer;
+  Gap: Integer;
+  TextWidth: Integer;
+  TextHeight: Integer;
+  ContentWidth: Integer;
+  StartLeft: Integer;
 begin
-  if not Assigned(FExecuteIcon) then
+  if (not Assigned(FExecuteIcon)) or (not Assigned(FExecuteLabel)) then
     Exit;
 
   if btnExecute.ClientWidth < btnExecute.ClientHeight then
@@ -651,10 +690,27 @@ begin
   if IconSize > 56 then
     IconSize := 56;
 
+  btnExecute.Canvas.Font.Assign(FExecuteLabel.Font);
+  TextWidth := btnExecute.Canvas.TextWidth(FExecuteLabel.Caption);
+  TextHeight := btnExecute.Canvas.TextHeight(FExecuteLabel.Caption);
+  Gap := 10;
+  if TextWidth > 0 then
+    ContentWidth := IconSize + Gap + TextWidth
+  else
+    ContentWidth := IconSize;
+
+  StartLeft := (btnExecute.ClientWidth - ContentWidth) div 2;
+  if StartLeft < 8 then
+    StartLeft := 8;
+
   FExecuteIcon.Width := IconSize;
   FExecuteIcon.Height := IconSize;
-  FExecuteIcon.Left := (btnExecute.ClientWidth - FExecuteIcon.Width) div 2;
+  FExecuteIcon.Left := StartLeft;
   FExecuteIcon.Top := (btnExecute.ClientHeight - FExecuteIcon.Height) div 2;
+
+  FExecuteLabel.Left := FExecuteIcon.Left + FExecuteIcon.Width + Gap;
+  FExecuteLabel.Top := (btnExecute.ClientHeight - TextHeight) div 2;
+  FExecuteLabel.BringToFront;
 end;
 
 procedure TMainForm.DefineVariableAsDefault(AItem: TVariableItem);
@@ -688,6 +744,82 @@ begin
         Lines.Insert(I, '::' + AItem.VarName + '=' + AItem.ValueEdit.Text);
       Break;
     end;
+    Lines.SaveToFile(FBatchFileName);
+  finally
+    Lines.Free;
+  end;
+
+  LoadBatchVariables(FBatchFileName);
+end;
+
+procedure TMainForm.RemoveVariableDefault(AItem: TVariableItem);
+var
+  Lines: TStringList;
+  I: Integer;
+  ExistingTagName: string;
+  ExistingTagValue: string;
+  VarName: string;
+  VarValue: string;
+begin
+  if (AItem = nil) or (FBatchFileName = '') or (not FileExists(FBatchFileName)) then
+    Exit;
+
+  Lines := TStringList.Create;
+  try
+    Lines.LoadFromFile(FBatchFileName);
+    for I := 0 to Lines.Count - 1 do
+    begin
+      if not ExtractAssignment(Lines[I], VarName, VarValue) then
+        Continue;
+      if not SameText(VarName, AItem.VarName) then
+        Continue;
+
+      if (I > 0)
+        and ExtractTaggedDefault(Lines[I - 1], ExistingTagName, ExistingTagValue)
+        and SameText(ExistingTagName, AItem.VarName) then
+        Lines.Delete(I - 1);
+      Break;
+    end;
+    Lines.SaveToFile(FBatchFileName);
+  finally
+    Lines.Free;
+  end;
+
+  LoadBatchVariables(FBatchFileName);
+end;
+
+procedure TMainForm.RemoveVisibleVariableDefaults;
+var
+  Lines: TStringList;
+  Item: TVariableItem;
+  I: Integer;
+  ExistingTagName: string;
+  ExistingTagValue: string;
+  VarName: string;
+  VarValue: string;
+begin
+  if (FBatchFileName = '') or (not FileExists(FBatchFileName)) or (FVariables.Count = 0) then
+    Exit;
+
+  Lines := TStringList.Create;
+  try
+    Lines.LoadFromFile(FBatchFileName);
+
+    for Item in FVariables do
+      for I := 0 to Lines.Count - 1 do
+      begin
+        if not ExtractAssignment(Lines[I], VarName, VarValue) then
+          Continue;
+        if not SameText(VarName, Item.VarName) then
+          Continue;
+
+        if (I > 0)
+          and ExtractTaggedDefault(Lines[I - 1], ExistingTagName, ExistingTagValue)
+          and SameText(ExistingTagName, Item.VarName) then
+            Lines.Delete(I - 1);
+        Break;
+      end;
+
     Lines.SaveToFile(FBatchFileName);
   finally
     Lines.Free;
@@ -915,6 +1047,23 @@ begin
       Item.ResetButton.Tag := PtrInt(Item);
       Item.ResetButton.OnClick := @btnResetVariableClick;
 
+      Item.RemoveDefaultButton := TSpeedButton.Create(ScrollBox1);
+      Item.RemoveDefaultButton.Parent := ScrollBox1;
+      Item.RemoveDefaultButton.Caption := 'x';
+      Item.RemoveDefaultButton.Hint := 'Eliminar default de ' + VarName;
+      Item.RemoveDefaultButton.ShowHint := True;
+      Item.RemoveDefaultButton.ParentShowHint := False;
+      Item.RemoveDefaultButton.Flat := True;
+      Item.RemoveDefaultButton.Cursor := crHandPoint;
+      Item.RemoveDefaultButton.Width := 24;
+      Item.RemoveDefaultButton.Height := 24;
+      Item.RemoveDefaultButton.Left := 0;
+      Item.RemoveDefaultButton.Top := TopPos;
+      Item.RemoveDefaultButton.Anchors := [akTop];
+      Item.RemoveDefaultButton.Visible := Item.HasTaggedDefault;
+      Item.RemoveDefaultButton.Tag := PtrInt(Item);
+      Item.RemoveDefaultButton.OnClick := @btnRemoveDefaultClick;
+
       Item.ValueEdit := TEdit.Create(ScrollBox1);
       Item.ValueEdit.Parent := ScrollBox1;
       Item.ValueEdit.Text := VarValue;
@@ -963,6 +1112,7 @@ var
   EditLeft: Integer;
   EditRight: Integer;
   EditWidth: Integer;
+  RemoveLeft: Integer;
   ResetLeft: Integer;
   DefineLeft: Integer;
   RightReserve: Integer;
@@ -975,7 +1125,8 @@ begin
   RightReserve := GetSystemMetrics(SM_CXVSCROLL) + 8;
   DefineLeft := ScrollBox1.ClientWidth - 16 - RightReserve - 24;
   ResetLeft := DefineLeft - 8 - 24;
-  EditRight := ResetLeft - 8;
+  RemoveLeft := ResetLeft - 8 - 24;
+  EditRight := RemoveLeft - 8;
   EditWidth := EditRight - EditLeft;
   if EditWidth < 180 then
     EditWidth := 180;
@@ -992,11 +1143,15 @@ begin
     Item.ResetButton.Left := ResetLeft;
     Item.ResetButton.Top := TopPos;
 
+    Item.RemoveDefaultButton.Left := RemoveLeft;
+    Item.RemoveDefaultButton.Top := TopPos;
+
     Item.ValueEdit.Left := EditLeft;
     Item.ValueEdit.Top := Item.NameLabel.Top + Item.NameLabel.Height + 6;
     Item.ValueEdit.Width := EditWidth;
 
     Item.ValueEdit.BringToFront;
+    Item.RemoveDefaultButton.BringToFront;
     Item.ResetButton.BringToFront;
     Item.DefineDefaultButton.BringToFront;
     Item.NameLabel.BringToFront;
@@ -1094,6 +1249,12 @@ procedure TMainForm.miDefinirValoresDefaultClick(Sender: TObject);
 begin
   DefineVisibleVariablesAsDefault;
   SetStatus('Defaults definidos');
+end;
+
+procedure TMainForm.miEliminarValoresDefaultClick(Sender: TObject);
+begin
+  RemoveVisibleVariableDefaults;
+  SetStatus('Defaults eliminados');
 end;
 
 procedure TMainForm.miResetearValoresClick(Sender: TObject);

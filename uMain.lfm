@@ -219,6 +219,10 @@ object MainForm: TMainForm
         Caption = 'Definir todas como default'
         OnClick = miDefinirValoresDefaultClick
       end
+      object miEliminarValoresDefault: TMenuItem
+        Caption = 'Eliminar todos los defaults'
+        OnClick = miEliminarValoresDefaultClick
+      end
     end
     object miConsola: TMenuItem
       Caption = 'Consola'

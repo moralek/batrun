@@ -64,9 +64,12 @@ La línea `::variable1=hola` funciona como valor por defecto explícito.
 - Se puede cargar un `.bat` con `Abrir...` o arrastrándolo sobre la aplicación.
 - La aplicación recuerda el último `.bat` cargado y lo vuelve a abrir al iniciar.
 - `Restablecer` solo aparece en variables que ya tienen `::NOMBRE=valor`.
+- `Eliminar default` solo aparece en variables que ya tienen `::NOMBRE=valor`.
 - `Restablecer todas` solo afecta variables que ya tienen `::NOMBRE=valor`.
 - Cada variable visible tiene una acción `+` para definir el valor actual como default.
+- Cada variable con default tiene una acción `x` para eliminar el comentario `::NOMBRE=valor`.
 - `Definir todas como default` agrega o actualiza `::NOMBRE=valor` para todas las variables visibles.
+- `Eliminar todos los defaults` quita los comentarios `::NOMBRE=valor` de todas las variables visibles.
 - La GUI muestra como máximo 10 variables editables.
 - Si el `.bat` tiene más de 10 variables editables, la advertencia aparece en la barra de estado.
 - El botón `Ejecutar` está en el panel inferior derecho.
