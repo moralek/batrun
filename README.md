@@ -1,4 +1,4 @@
-# batrun
+# 🦇 BATRUN
 
 Aplicación Lazarus/Free Pascal para:
 
@@ -26,7 +26,7 @@ set /p nombre=Nombre:
 
 ## Modo "solo precomentadas"
 
-Desde `Configuracion -> Usar solo precomentadas con ::`, la GUI puede limitarse
+Desde `Configuración -> Usar solo precomentadas con ::`, la GUI puede limitarse
 solo a variables marcadas con un comentario inmediatamente anterior:
 
 ```bat

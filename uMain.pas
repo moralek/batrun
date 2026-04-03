@@ -212,7 +212,7 @@ begin
   btnExecute.ParentBackground := False;
   btnExecute.Hint := 'Ejecutar';
   btnExecute.ShowHint := True;
-  miConfiguracion.Caption := 'Configuracion';
+  miConfiguracion.Caption := 'Configuración';
   CreateAppIcon;
   CreateExecuteIcon;
   LayoutActionButtons;
@@ -340,8 +340,8 @@ begin
   FinishTime := Now;
   FProcessTimer.Enabled := False;
   MemoOutput.Lines.Add('Fin: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', FinishTime));
-  MemoOutput.Lines.Add('Duracion: ' + FormatElapsed(FProcessStart, FinishTime));
-  MemoOutput.Lines.Add('Finalizado. Codigo de salida: ' + IntToStr(FProcess.ExitStatus));
+  MemoOutput.Lines.Add('Duración: ' + FormatElapsed(FProcessStart, FinishTime));
+  MemoOutput.Lines.Add('Finalizado. Código de salida: ' + IntToStr(FProcess.ExitStatus));
   FreeAndNil(FProcess);
   UpdateRunState(False);
   SetStatus('Finalizado');
@@ -948,7 +948,7 @@ begin
   PositionExecuteButton;
 
   if WarnTooManyVariables or (TotalEditableVars > MAX_GUI_VARIABLES) then
-    SetStatus('Hay mas de 10 variables; solo se muestran 10')
+    SetStatus('Hay más de 10 variables; solo se muestran 10')
   else if FVariables.Count = 0 then
     SetStatus('Sin variables editables')
   else
