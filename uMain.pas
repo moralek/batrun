@@ -46,7 +46,9 @@ type
     miResetearValores: TMenuItem;
     miSoloPrecomentadas: TMenuItem;
     miVariables: TMenuItem;
+    N1: TMenuItem;
     OpenDialog1: TOpenDialog;
+    pnlExe: TPanel;
     pnlConsole: TPanel;
     pnlActions: TPanel;
     pnlRight: TPanel;
@@ -60,6 +62,7 @@ type
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormDropFiles(Sender: TObject; const FileNames: array of string);
+    procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure miConfigurarEditorClick(Sender: TObject);
     procedure miDefinirValoresDefaultClick(Sender: TObject);
@@ -80,6 +83,7 @@ type
     FProcessStart: TDateTime;
     FProcessTimer: TTimer;
     FStartupDir: string;
+    FUpdatingVariableControls: Boolean;
     FVariables: TVariableList;
     procedure ApplyGuiValuesToBatchFile;
     procedure BringProcessWindowToFront(const APID: DWORD);
@@ -96,7 +100,10 @@ type
     function ExtractAssignment(const Line: string; out VarName, VarValue: string): Boolean;
     function ExtractTaggedDefault(const Line: string; out VarName, VarValue: string): Boolean;
     function FormatElapsed(const AStart, AFinish: TDateTime): string;
+    procedure LayoutActionButtons;
+    procedure LayoutExecuteIcon;
     procedure DefineVisibleVariablesAsDefault;
+    procedure LayoutVariableControls;
     procedure LoadDroppedBatchFile(const FileName: string);
     procedure LoadBatchVariables(const FileName: string);
     procedure PositionExecuteButton;
@@ -153,6 +160,7 @@ begin
   FProcessTimer.Interval := 300;
   FProcessTimer.OnTimer := @ProcessTimerTimer;
   FStartupDir := GetCurrentDir;
+  FUpdatingVariableControls := False;
   FOnlyPrecommentedVariables := False;
   OpenDialog1.Filter := 'Batch files|*.bat|All files|*.*';
   OpenDialog1.Options := OpenDialog1.Options + [ofFileMustExist, ofPathMustExist];
@@ -188,13 +196,15 @@ begin
   btnEditBatch.Font.Name := 'Segoe UI';
   btnEditBatch.Font.Size := 10;
   btnEditBatch.Font.Color := RGBToColor(60, 49, 35);
+  btnEditBatch.Caption := 'Editar';
   btnExecute.Caption := '▶';
   btnExecute.Font.Style := [fsBold];
   btnExecute.Font.Size := 11;
   btnExecute.Font.Name := 'Segoe UI';
   btnExecute.Font.Color := RGBToColor(60, 49, 35);
-  btnExecute.Height := 66;
-  btnExecute.Width := 140;
+  btnExecute.Caption := '';
+  btnExecute.Height := 60;
+  btnExecute.Width := 72;
   btnExecute.Color := RGBToColor(219, 205, 179);
   btnExecute.Alignment := taCenter;
   btnExecute.BevelOuter := bvNone;
@@ -202,10 +212,10 @@ begin
   btnExecute.ParentBackground := False;
   btnExecute.Hint := 'Ejecutar';
   btnExecute.ShowHint := True;
+  miConfiguracion.Caption := 'Configuracion';
   CreateAppIcon;
   CreateExecuteIcon;
-  btnExecute.Parent := ScrollBox1;
-  btnExecute.Anchors := [akTop, akRight];
+  LayoutActionButtons;
   LoadSettings;
   miSoloPrecomentadas.Checked := FOnlyPrecommentedVariables;
   PositionExecuteButton;
@@ -226,8 +236,20 @@ begin
   if FInitialLoadDone then
     Exit;
   FInitialLoadDone := True;
+  LayoutActionButtons;
+  LayoutVariableControls;
+  PositionExecuteButton;
   if FileExists(FBatchFileName) then
     LoadBatchVariables(FBatchFileName);
+end;
+
+procedure TMainForm.FormResize(Sender: TObject);
+begin
+  if FUpdatingVariableControls then
+    Exit;
+  LayoutActionButtons;
+  LayoutVariableControls;
+  PositionExecuteButton;
 end;
 
 procedure TMainForm.btnLoadClick(Sender: TObject);
@@ -330,9 +352,9 @@ procedure TMainForm.ClearVariableControls;
 var
   I: Integer;
 begin
+  FUpdatingVariableControls := True;
   for I := ScrollBox1.ControlCount - 1 downto 0 do
-    if ScrollBox1.Controls[I] <> btnExecute then
-      ScrollBox1.Controls[I].Free;
+    ScrollBox1.Controls[I].Free;
   FVariables.Clear;
 end;
 
@@ -351,12 +373,14 @@ end;
 procedure TMainForm.btnDefineDefaultClick(Sender: TObject);
 var
   Item: TVariableItem;
+  VarName: string;
 begin
   Item := TVariableItem(PtrUInt((Sender as TSpeedButton).Tag));
   if Item = nil then
     Exit;
+  VarName := Item.VarName;
   DefineVariableAsDefault(Item);
-  SetStatus('Default definido: ' + Item.VarName);
+  SetStatus('Default definido: ' + VarName);
 end;
 
 function TMainForm.ConfigureEditor: Boolean;
@@ -389,24 +413,24 @@ var
 begin
   Bmp := Graphics.TBitmap.Create;
   try
-    Bmp.SetSize(32, 32);
+    Bmp.SetSize(64, 64);
     Bmp.Canvas.Brush.Color := RGBToColor(219, 205, 179);
-    Bmp.Canvas.FillRect(0, 0, 32, 32);
+    Bmp.Canvas.FillRect(0, 0, 64, 64);
 
     Bmp.Canvas.Pen.Style := psClear;
     Bmp.Canvas.Brush.Color := RGBToColor(25, 28, 33);
-    P[0].X := 2;  P[0].Y := 13;
-    P[1].X := 7;  P[1].Y := 8;
-    P[2].X := 11; P[2].Y := 4;
-    P[3].X := 13; P[3].Y := 10;
-    P[4].X := 16; P[4].Y := 12;
-    P[5].X := 19; P[5].Y := 10;
-    P[6].X := 21; P[6].Y := 4;
-    P[7].X := 25; P[7].Y := 8;
-    P[8].X := 30; P[8].Y := 13;
-    P[9].X := 24; P[9].Y := 18;
-    P[10].X := 16; P[10].Y := 28;
-    P[11].X := 8; P[11].Y := 18;
+    P[0].X := 4;  P[0].Y := 26;
+    P[1].X := 14; P[1].Y := 16;
+    P[2].X := 22; P[2].Y := 8;
+    P[3].X := 26; P[3].Y := 20;
+    P[4].X := 32; P[4].Y := 24;
+    P[5].X := 38; P[5].Y := 20;
+    P[6].X := 42; P[6].Y := 8;
+    P[7].X := 50; P[7].Y := 16;
+    P[8].X := 60; P[8].Y := 26;
+    P[9].X := 48; P[9].Y := 36;
+    P[10].X := 32; P[10].Y := 56;
+    P[11].X := 16; P[11].Y := 36;
     Bmp.Canvas.Polygon(P);
 
     Icon.Assign(Bmp);
@@ -422,10 +446,6 @@ begin
 
   FExecuteIcon := TImage.Create(btnExecute);
   FExecuteIcon.Parent := btnExecute;
-  FExecuteIcon.Width := 40;
-  FExecuteIcon.Height := 40;
-  FExecuteIcon.Left := (btnExecute.Width - FExecuteIcon.Width) div 2;
-  FExecuteIcon.Top := (btnExecute.Height - FExecuteIcon.Height) div 2;
   FExecuteIcon.Center := True;
   FExecuteIcon.Stretch := True;
   FExecuteIcon.Proportional := True;
@@ -433,8 +453,9 @@ begin
   FExecuteIcon.Cursor := crHandPoint;
   FExecuteIcon.Hint := 'Ejecutar';
   FExecuteIcon.ShowHint := True;
-  FExecuteIcon.Picture.Assign(Icon);
   FExecuteIcon.OnClick := @btnExecuteClick;
+  FExecuteIcon.Picture.Assign(Icon);
+  LayoutExecuteIcon;
 end;
 
 procedure TMainForm.ApplyGuiValuesToBatchFile;
@@ -587,6 +608,55 @@ begin
   Result := Format('%.2d:%.2d:%.2d', [Hours, Minutes, Seconds]);
 end;
 
+procedure TMainForm.LayoutActionButtons;
+var
+  Margin: Integer;
+  Gap: Integer;
+  AvailableWidth: Integer;
+  ButtonWidth: Integer;
+begin
+  Margin := 16;
+  Gap := 16;
+  AvailableWidth := pnlActions.ClientWidth - (Margin * 2) - Gap;
+  if AvailableWidth < 200 then
+    AvailableWidth := 200;
+
+  ButtonWidth := AvailableWidth div 2;
+  if ButtonWidth < 96 then
+    ButtonWidth := 96;
+
+  btnLoad.Left := Margin;
+  btnLoad.Top := 16;
+  btnLoad.Width := ButtonWidth;
+
+  btnEditBatch.Left := btnLoad.Left + btnLoad.Width + Gap;
+  btnEditBatch.Top := btnLoad.Top;
+  btnEditBatch.Width := ButtonWidth;
+end;
+
+procedure TMainForm.LayoutExecuteIcon;
+var
+  IconSize: Integer;
+begin
+  if not Assigned(FExecuteIcon) then
+    Exit;
+
+  if btnExecute.ClientWidth < btnExecute.ClientHeight then
+    IconSize := btnExecute.ClientWidth div 2
+  else
+    IconSize := btnExecute.ClientHeight div 2;
+
+  if IconSize < 24 then
+    IconSize := 24;
+  if IconSize > 56 then
+    IconSize := 56;
+
+  FExecuteIcon.Width := IconSize;
+  FExecuteIcon.Height := IconSize;
+  FExecuteIcon.Left := (btnExecute.ClientWidth - FExecuteIcon.Width) div 2;
+  FExecuteIcon.Top := (btnExecute.ClientHeight - FExecuteIcon.Height) div 2;
+end;
+
 procedure TMainForm.DefineVariableAsDefault(AItem: TVariableItem);
 var
   Lines: TStringList;
@@ -683,12 +753,27 @@ begin
     Exit;
 
   Delete(S, 1, 4);
+  S := TrimLeft(S);
+  if S = '' then
+    Exit;
+
+  if (Length(S) >= 2) and (S[1] = '/') then
+    Exit;
+
+  if (Length(S) >= 2) and (S[1] = '"') and (S[Length(S)] = '"') then
+  begin
+    Delete(S, Length(S), 1);
+    Delete(S, 1, 1);
+  end;
+
   P := Pos('=', S);
   if P <= 1 then
     Exit;
 
   VarName := Trim(Copy(S, 1, P - 1));
   VarValue := Copy(S, P + 1, MaxInt);
+  if (VarName <> '') and (VarName[1] = '"') and (VarName[Length(VarName)] = '"') then
+    VarName := Copy(VarName, 2, Length(VarName) - 2);
   Result := VarName <> '';
 end;
 
@@ -722,15 +807,6 @@ var
   Lines: TStringList;
   I: Integer;
   TopPos: Integer;
-  LabelLeft: Integer;
-  ControlRight: Integer;
-  DefineLeft: Integer;
-  ResetLeft: Integer;
-  EditLeft: Integer;
-  EditWidth: Integer;
-  ResetGap: Integer;
-  LabelGap: Integer;
-  ItemGap: Integer;
   TaggedName: string;
   TaggedValue: string;
   VarName: string;
@@ -744,22 +820,10 @@ begin
   FLastBatchDir := ExtractFileDir(FileName);
   Caption := 'Batch Runner - ' + ExtractFileName(FileName);
 
+  ScrollBox1.DisableAlign;
   Lines := TStringList.Create;
   try
     Lines.LoadFromFile(FileName);
-    LabelLeft := btnLoad.Left;
-    ControlRight := btnEditBatch.Left + btnEditBatch.Width;
-    ResetGap := 8;
-    DefineLeft := ControlRight - 24;
-    ResetLeft := DefineLeft - 28;
-    if ResetLeft < 160 then
-      ResetLeft := 160;
-    EditLeft := btnLoad.Left;
-    EditWidth := ResetLeft - ResetGap - EditLeft;
-    if EditWidth < 280 then
-      EditWidth := 280;
-    LabelGap := 22;
-    ItemGap := 16;
     TopPos := 20;
     TotalEditableVars := 0;
     WarnTooManyVariables := False;
@@ -811,7 +875,7 @@ begin
       Item.NameLabel := TLabel.Create(ScrollBox1);
       Item.NameLabel.Parent := ScrollBox1;
       Item.NameLabel.Caption := VarName;
-      Item.NameLabel.Left := LabelLeft;
+      Item.NameLabel.Left := 16;
       Item.NameLabel.Top := TopPos + 2;
       Item.NameLabel.Font.Name := 'Segoe UI';
       Item.NameLabel.Font.Size := 10;
@@ -828,9 +892,9 @@ begin
       Item.DefineDefaultButton.Cursor := crHandPoint;
       Item.DefineDefaultButton.Width := 24;
       Item.DefineDefaultButton.Height := 24;
-      Item.DefineDefaultButton.Left := DefineLeft;
+      Item.DefineDefaultButton.Left := 0;
       Item.DefineDefaultButton.Top := TopPos;
-      Item.DefineDefaultButton.Anchors := [akTop, akRight];
+      Item.DefineDefaultButton.Anchors := [akTop];
       Item.DefineDefaultButton.Tag := PtrInt(Item);
       Item.DefineDefaultButton.OnClick := @btnDefineDefaultClick;
 
@@ -844,9 +908,9 @@ begin
       Item.ResetButton.Cursor := crHandPoint;
       Item.ResetButton.Width := 24;
       Item.ResetButton.Height := 24;
-      Item.ResetButton.Left := ResetLeft;
+      Item.ResetButton.Left := 0;
       Item.ResetButton.Top := TopPos;
-      Item.ResetButton.Anchors := [akTop, akRight];
+      Item.ResetButton.Anchors := [akTop];
       Item.ResetButton.Visible := Item.HasTaggedDefault;
       Item.ResetButton.Tag := PtrInt(Item);
       Item.ResetButton.OnClick := @btnResetVariableClick;
@@ -854,9 +918,9 @@ begin
       Item.ValueEdit := TEdit.Create(ScrollBox1);
       Item.ValueEdit.Parent := ScrollBox1;
       Item.ValueEdit.Text := VarValue;
-      Item.ValueEdit.Left := EditLeft;
-      Item.ValueEdit.Top := TopPos + LabelGap;
-      Item.ValueEdit.Width := EditWidth;
+      Item.ValueEdit.Left := 16;
+      Item.ValueEdit.Top := TopPos + Item.NameLabel.Height + 6;
+      Item.ValueEdit.Width := 280;
       Item.ValueEdit.Color := RGBToColor(251, 247, 239);
       Item.ValueEdit.BorderStyle := bsSingle;
       Item.ValueEdit.Font.Name := 'Segoe UI';
@@ -865,45 +929,91 @@ begin
       Item.ValueEdit.Anchors := [akLeft, akTop, akRight];
 
       FVariables.Add(Item);
-      Inc(TopPos, LabelGap + Item.ValueEdit.Height + ItemGap);
+      TopPos := Item.ValueEdit.Top + Item.ValueEdit.Height + 16;
     end;
 
   finally
     Lines.Free;
+    ScrollBox1.EnableAlign;
+    FUpdatingVariableControls := False;
   end;
 
+  ScrollBox1.VertScrollBar.Position := 0;
+  ScrollBox1.HorzScrollBar.Position := 0;
+  ScrollBox1.Realign;
+  LayoutVariableControls;
+  ScrollBox1.Realign;
+  LayoutVariableControls;
+  ScrollBox1.Invalidate;
   PositionExecuteButton;
 
-  if FVariables.Count = 0 then
+  if WarnTooManyVariables or (TotalEditableVars > MAX_GUI_VARIABLES) then
+    SetStatus('Hay mas de 10 variables; solo se muestran 10')
+  else if FVariables.Count = 0 then
     SetStatus('Sin variables editables')
   else
     SetStatus(IntToStr(FVariables.Count) + ' variable(s) editable(s)');
+end;
 
-  if WarnTooManyVariables or (TotalEditableVars > MAX_GUI_VARIABLES) then
-    MessageDlg('hay mas de 10 variables', mtWarning, [mbOK], 0);
+procedure TMainForm.LayoutVariableControls;
+var
+  Item: TVariableItem;
+  TopPos: Integer;
+  LabelLeft: Integer;
+  EditLeft: Integer;
+  EditRight: Integer;
+  EditWidth: Integer;
+  ResetLeft: Integer;
+  DefineLeft: Integer;
+  RightReserve: Integer;
+begin
+  if FUpdatingVariableControls then
+    Exit;
+
+  LabelLeft := 16;
+  EditLeft := LabelLeft;
+  RightReserve := GetSystemMetrics(SM_CXVSCROLL) + 8;
+  DefineLeft := ScrollBox1.ClientWidth - 16 - RightReserve - 24;
+  ResetLeft := DefineLeft - 8 - 24;
+  EditRight := ResetLeft - 8;
+  EditWidth := EditRight - EditLeft;
+  if EditWidth < 180 then
+    EditWidth := 180;
+
+  TopPos := 20;
+  for Item in FVariables do
+  begin
+    Item.NameLabel.Left := LabelLeft;
+    Item.NameLabel.Top := TopPos + 2;
+
+    Item.DefineDefaultButton.Left := DefineLeft;
+    Item.DefineDefaultButton.Top := TopPos;
+
+    Item.ResetButton.Left := ResetLeft;
+    Item.ResetButton.Top := TopPos;
+
+    Item.ValueEdit.Left := EditLeft;
+    Item.ValueEdit.Top := Item.NameLabel.Top + Item.NameLabel.Height + 6;
+    Item.ValueEdit.Width := EditWidth;
+
+    Item.ValueEdit.BringToFront;
+    Item.ResetButton.BringToFront;
+    Item.DefineDefaultButton.BringToFront;
+    Item.NameLabel.BringToFront;
+
+    TopPos := Item.ValueEdit.Top + Item.ValueEdit.Height + 16;
+  end;
 end;
 
 procedure TMainForm.PositionExecuteButton;
-var
-  LastBottom: Integer;
-  ControlRight: Integer;
 begin
-  if FVariables.Count > 0 then
-    LastBottom := FVariables[FVariables.Count - 1].ValueEdit.Top +
-      FVariables[FVariables.Count - 1].ValueEdit.Height
-  else
-    LastBottom := 20;
-
-  ControlRight := btnEditBatch.Left + btnEditBatch.Width;
-  btnExecute.Left := ControlRight - btnExecute.Width;
-  if btnExecute.Left < 20 then
-    btnExecute.Left := 20;
-  btnExecute.Top := LastBottom + 20;
-  if Assigned(FExecuteIcon) then
-  begin
-    FExecuteIcon.Left := (btnExecute.Width - FExecuteIcon.Width) div 2;
-    FExecuteIcon.Top := (btnExecute.Height - FExecuteIcon.Height) div 2;
-  end;
+  btnExecute.Left := pnlExe.ClientWidth - btnExecute.Width - 16;
+  if btnExecute.Left < 0 then
+    btnExecute.Left := 0;
+  btnExecute.Top := (pnlExe.ClientHeight - btnExecute.Height) div 2;
+  if btnExecute.Top < 0 then
+    btnExecute.Top := 0;
+  LayoutExecuteIcon;
 end;
 
 procedure TMainForm.LoadSettings;
@@ -954,6 +1064,9 @@ end;
 
 procedure TMainForm.ScrollBox1Resize(Sender: TObject);
 begin
+  if FUpdatingVariableControls then
+    Exit;
+  LayoutVariableControls;
   PositionExecuteButton;
 end;
 

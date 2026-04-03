@@ -1,36 +1,39 @@
 object MainForm: TMainForm
-  Left = 259
-  Height = 860
-  Menu = MainMenu1
-  Top = 324
-  Width = 1664
-  Caption = 'BAT Runner'
-  ClientHeight = 860
-  ClientWidth = 1664
+  Left = 240
+  Height = 1280
+  Top = 180
+  Width = 2048
   AllowDropFiles = True
+  Caption = 'BAT Runner'
+  ClientHeight = 1280
+  ClientWidth = 2048
   DesignTimePPI = 192
+  Menu = MainMenu1
   LCLVersion = '4.6.0.0'
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnDropFiles = FormDropFiles
+  OnResize = FormResize
   OnShow = FormShow
   object pnlConsole: TPanel
-    Left = 8
-    Height = 821
-    Top = 8
-    Width = 1052
+    Left = 16
+    Height = 1204
+    Top = 16
+    Width = 1280
     Align = alClient
-    BorderSpacing.Around = 8
+    BorderSpacing.Around = 16
     BevelOuter = bvNone
+    ClientHeight = 1204
+    ClientWidth = 1280
     Color = 1119256
     ParentBackground = False
     ParentColor = False
     TabOrder = 0
     object MemoOutput: TMemo
       Left = 0
-      Height = 821
+      Height = 1204
       Top = 0
-      Width = 1052
+      Width = 1280
       Align = alClient
       ReadOnly = True
       ScrollBars = ssAutoBoth
@@ -39,85 +42,31 @@ object MainForm: TMainForm
     end
   end
   object Splitter1: TSplitter
-    Left = 1068
-    Height = 837
+    Left = 1312
+    Height = 1236
     Top = 0
-    Width = 8
+    Width = 16
     Align = alRight
     ResizeAnchor = akRight
   end
   object pnlRight: TPanel
-    Left = 1076
-    Height = 837
+    Left = 1328
+    Height = 1236
     Top = 0
-    Width = 588
+    Width = 720
     Align = alRight
     BevelOuter = bvNone
-    ClientHeight = 837
-    ClientWidth = 588
+    ClientHeight = 1236
+    ClientWidth = 720
     Color = 13426408
     ParentBackground = False
     ParentColor = False
     TabOrder = 1
-    object pnlActions: TPanel
-      Left = 0
-      Height = 84
-      Top = 0
-      Width = 588
-      Align = alTop
-      BevelOuter = bvNone
-      ClientHeight = 84
-      ClientWidth = 588
-      Color = 13426408
-      ParentBackground = False
-      ParentColor = False
-      TabOrder = 0
-      object btnLoad: TPanel
-        Left = 16
-        Height = 36
-        Top = 16
-        Width = 270
-        Alignment = taCenter
-        BevelOuter = bvNone
-        Caption = 'Abrir...'
-        Color = 14872565
-        Font.CharSet = DEFAULT_CHARSET
-        Font.Color = 3946812
-        Font.Height = -19
-        Font.Name = 'Segoe UI'
-        Font.Pitch = fpVariable
-        Font.Quality = fqCleartypeNatural
-        ParentBackground = False
-        ParentFont = False
-        TabOrder = 0
-        OnClick = btnLoadClick
-      end
-      object btnEditBatch: TPanel
-        Left = 302
-        Height = 36
-        Top = 16
-        Width = 270
-        Alignment = taCenter
-        BevelOuter = bvNone
-        Caption = '✎ Editar'
-        Color = 14872565
-        Font.CharSet = DEFAULT_CHARSET
-        Font.Color = 3946812
-        Font.Height = -19
-        Font.Name = 'Segoe UI'
-        Font.Pitch = fpVariable
-        Font.Quality = fqCleartypeNatural
-        ParentBackground = False
-        ParentFont = False
-        TabOrder = 1
-        OnClick = btnEditBatchClick
-      end
-    end
     object ScrollBox1: TScrollBox
       Left = 0
-      Height = 753
-      Top = 84
-      Width = 588
+      Height = 956
+      Top = 136
+      Width = 720
       HorzScrollBar.Page = 1
       HorzScrollBar.Tracking = True
       VertScrollBar.Page = 1
@@ -125,52 +74,123 @@ object MainForm: TMainForm
       Align = alClient
       BorderStyle = bsNone
       Color = 13426408
-      OnResize = ScrollBox1Resize
       ParentBackground = False
       ParentColor = False
       TabOrder = 1
+      OnResize = ScrollBox1Resize
+    end
+    object pnlExe: TPanel
+      Left = 0
+      Height = 144
+      Top = 1092
+      Width = 720
+      Align = alBottom
+      BevelOuter = bvNone
+      ClientHeight = 144
+      ClientWidth = 720
+      ParentBackground = False
+      TabOrder = 2
       object btnExecute: TPanel
-        Left = 286
-        Height = 44
-        Top = 16
-        Width = 286
-        Anchors = [akTop, akRight]
-        Alignment = taCenter
+        AnchorSideLeft.Control = pnlExe
+        AnchorSideTop.Control = pnlExe
+        AnchorSideRight.Control = pnlExe
+        AnchorSideRight.Side = asrBottom
+        AnchorSideBottom.Control = pnlExe
+        AnchorSideBottom.Side = asrBottom
+        Left = 30
+        Height = 104
+        Top = 20
+        Width = 660
+        Anchors = [akTop, akLeft, akRight, akBottom]
+        BorderSpacing.Left = 30
+        BorderSpacing.Top = 20
+        BorderSpacing.Right = 30
+        BorderSpacing.Bottom = 20
         BevelOuter = bvNone
-        Caption = ''
         Color = 11783643
-        Font.CharSet = DEFAULT_CHARSET
         Font.Color = 3946812
-        Font.Height = -21
+        Font.Height = -42
         Font.Name = 'Segoe UI'
         Font.Pitch = fpVariable
         Font.Quality = fqCleartypeNatural
         ParentBackground = False
+        ParentColor = False
         ParentFont = False
         TabOrder = 0
         OnClick = btnExecuteClick
       end
     end
+    object pnlActions: TPanel
+      Left = 0
+      Height = 136
+      Top = 0
+      Width = 720
+      Align = alTop
+      BevelOuter = bvNone
+      ClientHeight = 136
+      ClientWidth = 720
+      Color = 13426408
+      ParentBackground = False
+      ParentColor = False
+      TabOrder = 0
+      object btnLoad: TPanel
+        Left = 32
+        Height = 72
+        Top = 32
+        Width = 312
+        BevelOuter = bvNone
+        Caption = 'Abrir...'
+        Color = 14872565
+        Font.Color = 3946812
+        Font.Height = -38
+        Font.Name = 'Segoe UI'
+        Font.Pitch = fpVariable
+        Font.Quality = fqCleartypeNatural
+        ParentBackground = False
+        ParentColor = False
+        ParentFont = False
+        TabOrder = 0
+        OnClick = btnLoadClick
+      end
+      object btnEditBatch: TPanel
+        Left = 376
+        Height = 72
+        Top = 32
+        Width = 312
+        BevelOuter = bvNone
+        Caption = '✎ Editar'
+        Color = 14872565
+        Font.Color = 3946812
+        Font.Height = -38
+        Font.Name = 'Segoe UI'
+        Font.Pitch = fpVariable
+        Font.Quality = fqCleartypeNatural
+        ParentBackground = False
+        ParentColor = False
+        ParentFont = False
+        TabOrder = 1
+        OnClick = btnEditBatchClick
+      end
+    end
   end
   object StatusBar1: TStatusBar
     Left = 0
-    Height = 23
-    Top = 837
-    Width = 1664
+    Height = 44
+    Top = 1236
+    Width = 2048
     Panels = <>
-    SimplePanel = True
   end
   object OpenDialog1: TOpenDialog
-    Left = 656
-    Top = 16
+    Left = 1312
+    Top = 32
   end
   object EditorDialog1: TOpenDialog
-    Left = 760
-    Top = 16
+    Left = 1520
+    Top = 32
   end
   object MainMenu1: TMainMenu
-    Left = 864
-    Top = 16
+    Left = 1728
+    Top = 32
     object miArchivo: TMenuItem
       Caption = 'Archivo'
       object miCargarBat: TMenuItem
