@@ -10,6 +10,10 @@ uses
 
 const
   MAX_GUI_VARIABLES = 10;
+  ACTION_BUTTON_BASE_COLOR = 14872565;
+  ACTION_BUTTON_PRESSED_COLOR = 13942710;
+  EXECUTE_BUTTON_BASE_COLOR = 14872565;
+  EXECUTE_BUTTON_PRESSED_COLOR = 13942710;
 
 type
   TVariableItem = class
@@ -29,6 +33,7 @@ type
   { TMainForm }
 
   TMainForm = class(TForm)
+    btnClearOutput: TBitBtn;
     btnEditBatch: TPanel;
     btnExecute: TPanel;
     btnLoad: TPanel;
@@ -58,8 +63,24 @@ type
     Splitter1: TSplitter;
     StatusBar1: TStatusBar;
     procedure btnEditBatchClick(Sender: TObject);
+    procedure btnEditBatchMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure btnEditBatchMouseLeave(Sender: TObject);
+    procedure btnEditBatchMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
     procedure btnExecuteClick(Sender: TObject);
+    procedure btnExecuteMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure btnExecuteMouseEnter(Sender: TObject);
+    procedure btnExecuteMouseLeave(Sender: TObject);
+    procedure btnExecuteMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
     procedure btnLoadClick(Sender: TObject);
+    procedure btnLoadMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure btnLoadMouseLeave(Sender: TObject);
+    procedure btnLoadMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
     procedure btnClearOutputClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -78,15 +99,18 @@ type
     FBatchFileName: string;
     FConfigFileName: string;
     FEditorPath: string;
+    FEditPressed: Boolean;
     FExecuteIcon: TImage;
     FExecuteLabel: TLabel;
     FInitialLoadDone: Boolean;
     FLastBatchDir: string;
+    FLoadPressed: Boolean;
     FOnlyPrecommentedVariables: Boolean;
     FProcess: TProcess;
     FProcessStart: TDateTime;
     FProcessTimer: TTimer;
     FStartupDir: string;
+    FExecutePressed: Boolean;
     FUpdatingVariableControls: Boolean;
     FVariables: TVariableList;
     procedure ApplyGuiValuesToBatchFile;
@@ -117,7 +141,9 @@ type
     procedure RemoveVariableDefault(AItem: TVariableItem);
     procedure ResetVariablesToDefault;
     procedure SaveSettings;
+    procedure UpdateActionButtonVisual(AButton: TPanel; APressed: Boolean);
     procedure SetStatus(const S: string);
+    procedure UpdateExecuteButtonVisual;
     procedure UpdateRunState(const ARunning: Boolean);
   end;
 
@@ -167,6 +193,7 @@ begin
   FProcessTimer.Interval := 300;
   FProcessTimer.OnTimer := @ProcessTimerTimer;
   FStartupDir := GetCurrentDir;
+  FExecutePressed := False;
   FUpdatingVariableControls := False;
   FOnlyPrecommentedVariables := False;
   OpenDialog1.Filter := 'Batch files|*.bat|All files|*.*';
@@ -175,53 +202,16 @@ begin
   EditorDialog1.Filter := 'Aplicaciones|*.exe|Todos los archivos|*.*';
   EditorDialog1.Options := EditorDialog1.Options + [ofFileMustExist, ofPathMustExist];
   EditorDialog1.InitialDir := FStartupDir;
-  Color := RGBToColor(245, 239, 226);
-  MemoOutput.Color := RGBToColor(17, 20, 24);
-  MemoOutput.Font.Color := RGBToColor(143, 255, 186);
-  MemoOutput.Font.Name := 'Consolas';
-  MemoOutput.Font.Size := 10;
-  pnlRight.Color := RGBToColor(232, 222, 204);
-  pnlActions.Color := RGBToColor(232, 222, 204);
-  ScrollBox1.Color := RGBToColor(232, 222, 204);
-  StatusBar1.Color := RGBToColor(219, 205, 179);
-  MemoOutput.Font.Color := RGBToColor(143, 255, 186);
-  btnLoad.Caption := 'Abrir...';
-  btnEditBatch.Caption := '✎ Editar';
-  btnLoad.Color := RGBToColor(245, 239, 226);
-  btnLoad.Alignment := taCenter;
-  btnLoad.BevelOuter := bvNone;
-  btnLoad.Cursor := crHandPoint;
-  btnLoad.ParentBackground := False;
-  btnLoad.Font.Name := 'Segoe UI';
-  btnLoad.Font.Size := 10;
-  btnLoad.Font.Color := RGBToColor(60, 49, 35);
-  btnEditBatch.Color := RGBToColor(245, 239, 226);
-  btnEditBatch.Alignment := taCenter;
-  btnEditBatch.BevelOuter := bvNone;
-  btnEditBatch.Cursor := crHandPoint;
-  btnEditBatch.ParentBackground := False;
-  btnEditBatch.Font.Name := 'Segoe UI';
-  btnEditBatch.Font.Size := 10;
-  btnEditBatch.Font.Color := RGBToColor(60, 49, 35);
-  btnEditBatch.Caption := 'Editar';
-  btnExecute.Caption := '▶';
-  btnExecute.Font.Style := [fsBold];
-  btnExecute.Font.Size := 11;
-  btnExecute.Font.Name := 'Segoe UI';
-  btnExecute.Font.Color := RGBToColor(60, 49, 35);
-  btnExecute.Caption := '';
+  FEditPressed := False;
   btnExecute.Height := 60;
   btnExecute.Width := 72;
-  btnExecute.Color := RGBToColor(219, 205, 179);
-  btnExecute.Alignment := taCenter;
-  btnExecute.BevelOuter := bvNone;
-  btnExecute.Cursor := crHandPoint;
-  btnExecute.ParentBackground := False;
-  btnExecute.Hint := 'Ejecutar';
-  btnExecute.ShowHint := True;
+  FLoadPressed := False;
   miConfiguracion.Caption := 'Configuración';
   CreateAppIcon;
   CreateExecuteIcon;
+  UpdateActionButtonVisual(btnLoad, False);
+  UpdateActionButtonVisual(btnEditBatch, False);
+  UpdateExecuteButtonVisual;
   LayoutActionButtons;
   LoadSettings;
   miSoloPrecomentadas.Checked := FOnlyPrecommentedVariables;
@@ -275,14 +265,110 @@ begin
     LoadBatchVariables(OpenDialog1.FileName);
 end;
 
+procedure TMainForm.btnLoadMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  if (Button <> mbLeft) or (not btnLoad.Enabled) then
+    Exit;
+  FLoadPressed := True;
+  UpdateActionButtonVisual(btnLoad, True);
+end;
+
+procedure TMainForm.btnLoadMouseUp(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  if Button <> mbLeft then
+    Exit;
+  FLoadPressed := False;
+  UpdateActionButtonVisual(btnLoad, False);
+end;
+
+procedure TMainForm.btnLoadMouseLeave(Sender: TObject);
+begin
+  FLoadPressed := False;
+  UpdateActionButtonVisual(btnLoad, False);
+end;
+
 procedure TMainForm.btnEditBatchClick(Sender: TObject);
 begin
   EditBatchFile;
 end;
 
+procedure TMainForm.btnEditBatchMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  if (Button <> mbLeft) or (not btnEditBatch.Enabled) then
+    Exit;
+  FEditPressed := True;
+  UpdateActionButtonVisual(btnEditBatch, True);
+end;
+
+procedure TMainForm.btnEditBatchMouseUp(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  if Button <> mbLeft then
+    Exit;
+  FEditPressed := False;
+  UpdateActionButtonVisual(btnEditBatch, False);
+end;
+
+procedure TMainForm.btnEditBatchMouseLeave(Sender: TObject);
+begin
+  FEditPressed := False;
+  UpdateActionButtonVisual(btnEditBatch, False);
+end;
+
 procedure TMainForm.SetStatus(const S: string);
 begin
   StatusBar1.SimpleText := S;
+end;
+
+procedure TMainForm.UpdateExecuteButtonVisual;
+begin
+  if not btnExecute.Enabled then
+  begin
+    btnExecute.Color := EXECUTE_BUTTON_BASE_COLOR;
+    btnExecute.BevelInner := bvNone;
+    btnExecute.BevelOuter := bvNone;
+    Exit;
+  end;
+
+  if FExecutePressed then
+  begin
+    btnExecute.Color := EXECUTE_BUTTON_PRESSED_COLOR;
+    btnExecute.BevelInner := bvLowered;
+    btnExecute.BevelOuter := bvLowered;
+  end
+  else
+  begin
+    btnExecute.Color := EXECUTE_BUTTON_BASE_COLOR;
+    btnExecute.BevelInner := bvNone;
+    btnExecute.BevelOuter := bvNone;
+  end;
+end;
+
+procedure TMainForm.UpdateActionButtonVisual(AButton: TPanel; APressed: Boolean);
+begin
+  if not AButton.Enabled then
+  begin
+    AButton.Color := ACTION_BUTTON_BASE_COLOR;
+    AButton.BevelInner := bvNone;
+    AButton.BevelOuter := bvNone;
+    Exit;
+  end;
+
+  if APressed then
+  begin
+    AButton.Color := ACTION_BUTTON_PRESSED_COLOR;
+    AButton.BevelInner := bvLowered;
+    AButton.BevelOuter := bvLowered;
+  end
+  else
+  begin
+    AButton.Color := ACTION_BUTTON_BASE_COLOR;
+    AButton.BevelInner := bvNone;
+    AButton.BevelOuter := bvNone;
+  end;
 end;
 
 procedure TMainForm.btnClearOutputClick(Sender: TObject);
@@ -329,6 +415,39 @@ begin
   UpdateRunState(True);
   BringProcessWindowToFront(FProcess.ProcessID);
   FProcessTimer.Enabled := True;
+end;
+
+procedure TMainForm.btnExecuteMouseEnter(Sender: TObject);
+begin
+  if not btnExecute.Enabled then
+    Exit;
+  btnExecute.Tag := 1;
+  UpdateExecuteButtonVisual;
+end;
+
+procedure TMainForm.btnExecuteMouseLeave(Sender: TObject);
+begin
+  btnExecute.Tag := 0;
+  FExecutePressed := False;
+  UpdateExecuteButtonVisual;
+end;
+
+procedure TMainForm.btnExecuteMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  if (Button <> mbLeft) or (not btnExecute.Enabled) then
+    Exit;
+  FExecutePressed := True;
+  UpdateExecuteButtonVisual;
+end;
+
+procedure TMainForm.btnExecuteMouseUp(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  if Button <> mbLeft then
+    Exit;
+  FExecutePressed := False;
+  UpdateExecuteButtonVisual;
 end;
 
 procedure TMainForm.ProcessTimerTimer(Sender: TObject);
@@ -527,6 +646,10 @@ begin
   FExecuteIcon.Hint := 'Ejecutar';
   FExecuteIcon.ShowHint := True;
   FExecuteIcon.OnClick := @btnExecuteClick;
+  FExecuteIcon.OnMouseEnter := @btnExecuteMouseEnter;
+  FExecuteIcon.OnMouseLeave := @btnExecuteMouseLeave;
+  FExecuteIcon.OnMouseDown := @btnExecuteMouseDown;
+  FExecuteIcon.OnMouseUp := @btnExecuteMouseUp;
   FExecuteIcon.Picture.Assign(Icon);
 
   FExecuteLabel := TLabel.Create(btnExecute);
@@ -538,8 +661,57 @@ begin
   FExecuteLabel.Transparent := True;
   FExecuteLabel.Cursor := crHandPoint;
   FExecuteLabel.OnClick := @btnExecuteClick;
+  FExecuteLabel.OnMouseEnter := @btnExecuteMouseEnter;
+  FExecuteLabel.OnMouseLeave := @btnExecuteMouseLeave;
+  FExecuteLabel.OnMouseDown := @btnExecuteMouseDown;
+  FExecuteLabel.OnMouseUp := @btnExecuteMouseUp;
 
   LayoutExecuteIcon;
+end;
+
+procedure TMainForm.LayoutExecuteIcon;
+var
+  IconSize: Integer;
+  Gap: Integer;
+  TextWidth: Integer;
+  TextHeight: Integer;
+  ContentWidth: Integer;
+  StartLeft: Integer;
+begin
+  if (not Assigned(FExecuteIcon)) or (not Assigned(FExecuteLabel)) then
+    Exit;
+
+  if btnExecute.ClientWidth < btnExecute.ClientHeight then
+    IconSize := btnExecute.ClientWidth div 2
+  else
+    IconSize := btnExecute.ClientHeight div 2;
+
+  if IconSize < 24 then
+    IconSize := 24;
+  if IconSize > 56 then
+    IconSize := 56;
+
+  btnExecute.Canvas.Font.Assign(FExecuteLabel.Font);
+  TextWidth := btnExecute.Canvas.TextWidth(FExecuteLabel.Caption);
+  TextHeight := btnExecute.Canvas.TextHeight(FExecuteLabel.Caption);
+  Gap := 10;
+  if TextWidth > 0 then
+    ContentWidth := IconSize + Gap + TextWidth
+  else
+    ContentWidth := IconSize;
+
+  StartLeft := (btnExecute.ClientWidth - ContentWidth) div 2;
+  if StartLeft < 8 then
+    StartLeft := 8;
+
+  FExecuteIcon.Width := IconSize;
+  FExecuteIcon.Height := IconSize;
+  FExecuteIcon.Left := StartLeft;
+  FExecuteIcon.Top := (btnExecute.ClientHeight - FExecuteIcon.Height) div 2;
+
+  FExecuteLabel.Left := FExecuteIcon.Left + FExecuteIcon.Width + Gap;
+  FExecuteLabel.Top := (btnExecute.ClientHeight - TextHeight) div 2;
+  FExecuteLabel.BringToFront;
 end;
 
 procedure TMainForm.ApplyGuiValuesToBatchFile;
@@ -716,51 +888,6 @@ begin
   btnEditBatch.Left := btnLoad.Left + btnLoad.Width + Gap;
   btnEditBatch.Top := btnLoad.Top;
   btnEditBatch.Width := ButtonWidth;
-end;
-
-procedure TMainForm.LayoutExecuteIcon;
-var
-  IconSize: Integer;
-  Gap: Integer;
-  TextWidth: Integer;
-  TextHeight: Integer;
-  ContentWidth: Integer;
-  StartLeft: Integer;
-begin
-  if (not Assigned(FExecuteIcon)) or (not Assigned(FExecuteLabel)) then
-    Exit;
-
-  if btnExecute.ClientWidth < btnExecute.ClientHeight then
-    IconSize := btnExecute.ClientWidth div 2
-  else
-    IconSize := btnExecute.ClientHeight div 2;
-
-  if IconSize < 24 then
-    IconSize := 24;
-  if IconSize > 56 then
-    IconSize := 56;
-
-  btnExecute.Canvas.Font.Assign(FExecuteLabel.Font);
-  TextWidth := btnExecute.Canvas.TextWidth(FExecuteLabel.Caption);
-  TextHeight := btnExecute.Canvas.TextHeight(FExecuteLabel.Caption);
-  Gap := 10;
-  if TextWidth > 0 then
-    ContentWidth := IconSize + Gap + TextWidth
-  else
-    ContentWidth := IconSize;
-
-  StartLeft := (btnExecute.ClientWidth - ContentWidth) div 2;
-  if StartLeft < 8 then
-    StartLeft := 8;
-
-  FExecuteIcon.Width := IconSize;
-  FExecuteIcon.Height := IconSize;
-  FExecuteIcon.Left := StartLeft;
-  FExecuteIcon.Top := (btnExecute.ClientHeight - FExecuteIcon.Height) div 2;
-
-  FExecuteLabel.Left := FExecuteIcon.Left + FExecuteIcon.Width + Gap;
-  FExecuteLabel.Top := (btnExecute.ClientHeight - TextHeight) div 2;
-  FExecuteLabel.BringToFront;
 end;
 
 procedure TMainForm.DefineVariableAsDefault(AItem: TVariableItem);
@@ -1322,6 +1449,14 @@ begin
   btnExecute.Enabled := not ARunning;
   btnLoad.Enabled := not ARunning;
   btnEditBatch.Enabled := not ARunning;
+  if not ARunning then
+  begin
+    FLoadPressed := False;
+    FEditPressed := False;
+  end;
+  UpdateActionButtonVisual(btnLoad, FLoadPressed);
+  UpdateActionButtonVisual(btnEditBatch, FEditPressed);
+  UpdateExecuteButtonVisual;
 end;
 
 end.
