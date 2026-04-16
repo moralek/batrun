@@ -84,8 +84,6 @@ La línea `::variable1=hola` funciona como valor por defecto explícito.
 - `uMain.pas`: lógica principal
 - `uMain.lfm`: diseño del formulario
 - `build.sh`: entrypoint rápido para generar `target/batrun.exe`
-- `tools/ppc386-win32-wrapper.sh`: wrapper del compilador Win32/i386
-- `tools/write-fpc-win32-cfg.sh`: genera `target/fpc-win32.cfg`
 - `tools/build-win32.sh`: build reproducible de `Win32/i386`
 - `bat/`: carpeta para `.bat` de prueba
 - `target/`: salida de compilación
@@ -115,15 +113,18 @@ target\batrun.exe
 Ese script:
 
 - delega en `tools/build-win32.sh`
-- genera `target/fpc-win32.cfg`
-- usa `tools/ppc386-win32-wrapper.sh`
+- usa el compilador global `ppc386`
 - usa `target/lazarus-pcp-win32` como configuración local de Lazarus
 - genera `target/batrun.exe`
 
+El repo no mantiene wrappers locales para `ppc386` ni genera
+`target/fpc-win32.cfg`. La configuración Win32 del compilador debe estar
+resuelta por el `ppc386` disponible en `PATH`.
+
 Prerequisitos esperados por defecto para el build Win32 desde Linux:
 
-- compilador `ppc386` en `/tmp/fpc-i386-root/usr/lib/i386-linux-gnu/fpc/3.2.2/ppc386`
-- unidades Win32 de FPC en `/tmp/fpc-win32-manual/app/units/i386-win32`
+- compilador `ppc386` disponible en `PATH`
+- configuración Win32 del compilador ya instalada en el entorno global
 - Lazarus en `/usr/lib/lazarus/default`
 
 En el caso normal no hace falta configurar nada más:
@@ -136,8 +137,7 @@ Solo si esas rutas cambian, se pueden sobrescribir temporalmente con variables
 de entorno:
 
 ```bash
-BATRUN_PPC386=/ruta/al/ppc386 \
-BATRUN_FPC_WIN32_UNITS_ROOT=/ruta/a/app/units/i386-win32 \
+BATRUN_FPC_WIN32_COMPILER=/ruta/al/ppc386 \
 BATRUN_LAZARUS_DIR=/ruta/a/lazarus \
 bash build.sh
 ```

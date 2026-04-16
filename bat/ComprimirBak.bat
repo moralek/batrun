@@ -11,7 +11,7 @@ set RUTA7Z="C:\Program Files\7-Zip\7z.exe"
 rem mc puede ser 0-9
 rem set /a MC=9
 ::MC=9
-set MC=9
+set MC=1
 
 rem =============================================
 echo Nivel de compresi¢n: %MC% de 9

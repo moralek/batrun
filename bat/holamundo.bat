@@ -5,9 +5,15 @@ set variable1=hola
 ::variable2=mundo
 set variable2=mundo
 set /a var=1+1
-set variable3=variable3
+
+::variable3=nuevamente,
+set variable3=nuevamente,
+
+::variable4=variable4
 set variable4=variable4
+::variable5=variable5
 set variable5=variable5
+::variable6=variable6
 set variable6=variable6
 set variable7=variable7
 set variable8=variable8
@@ -18,10 +24,12 @@ set variable12=variable12
 
 echo.
 echo %variable1% %variable2%
+echo.
 pause
 
 echo.
-echo nuevamente %variable1% %variable2%
+echo %variable3% %variable1% %variable2%
+echo.
 pause
 
 echo.
