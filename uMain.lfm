@@ -38,7 +38,7 @@ object MainForm: TMainForm
       Align = alClient
       Color = 1119256
       Font.Color = 9433018
-      Font.Height = -17
+      Font.Height = -24
       Font.Name = 'Consolas'
       Font.Pitch = fpFixed
       Font.Quality = fqCleartypeNatural

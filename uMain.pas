@@ -14,6 +14,7 @@ const
   ACTION_BUTTON_PRESSED_COLOR = 13942710;
   EXECUTE_BUTTON_BASE_COLOR = 14872565;
   EXECUTE_BUTTON_PRESSED_COLOR = 13942710;
+  CONSOLE_FONT_SIZE = 9;
 
 type
   TVariableItem = class
@@ -202,6 +203,7 @@ begin
   EditorDialog1.Filter := 'Aplicaciones|*.exe|Todos los archivos|*.*';
   EditorDialog1.Options := EditorDialog1.Options + [ofFileMustExist, ofPathMustExist];
   EditorDialog1.InitialDir := FStartupDir;
+  MemoOutput.Font.Size := CONSOLE_FONT_SIZE;
   FEditPressed := False;
   btnExecute.Height := 60;
   btnExecute.Width := 72;
