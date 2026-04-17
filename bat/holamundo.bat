@@ -13,7 +13,6 @@ set variable3=nuevamente,
 set variable4=variable4
 ::variable5=variable5
 set variable5=variable5
-::variable6=variable6
 set variable6=variable6
 set variable7=variable7
 set variable8=variable8

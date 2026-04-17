@@ -10,6 +10,11 @@ uses
 
 const
   MAX_GUI_VARIABLES = 10;
+  NEW_TAB_CAPTION = '[nueva]';
+  TAB_ADD_BUTTON_SIZE = 34;
+  TAB_ADD_BUTTON_MARGIN = 7;
+  TAB_CLOSE_HIT_WIDTH = 56;
+  TAB_MIN_CAPTION_WIDTH = 96;
   ACTION_BUTTON_BASE_COLOR = 14872565;
   ACTION_BUTTON_PRESSED_COLOR = 13942710;
   EXECUTE_BUTTON_BASE_COLOR = 14872565;
@@ -31,6 +36,21 @@ type
 
   TVariableList = specialize TFPGObjectList<TVariableItem>;
 
+  TBatchTab = class
+  public
+    BatchFileName: string;
+    CustomName: string;
+    Output: TStringList;
+    Process: TProcess;
+    ProcessStart: TDateTime;
+    StatusText: string;
+    Values: TStringList;
+    constructor Create;
+    destructor Destroy; override;
+  end;
+
+  TBatchTabList = specialize TFPGObjectList<TBatchTab>;
+
   { TMainForm }
 
   TMainForm = class(TForm)
@@ -43,6 +63,7 @@ type
     MemoOutput: TMemo;
     miArchivo: TMenuItem;
     miCargarBat: TMenuItem;
+    miCerrarPestana: TMenuItem;
     miConsola: TMenuItem;
     miConfiguracion: TMenuItem;
     miConfigurarEditor: TMenuItem;
@@ -50,6 +71,7 @@ type
     miEliminarValoresDefault: TMenuItem;
     miEditarBat: TMenuItem;
     miLimpiarConsola: TMenuItem;
+    miNuevaPestana: TMenuItem;
     miSalir: TMenuItem;
     miResetearValores: TMenuItem;
     miSoloPrecomentadas: TMenuItem;
@@ -89,8 +111,10 @@ type
     procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure miConfigurarEditorClick(Sender: TObject);
+    procedure miCerrarPestanaClick(Sender: TObject);
     procedure miDefinirValoresDefaultClick(Sender: TObject);
     procedure miEliminarValoresDefaultClick(Sender: TObject);
+    procedure miNuevaPestanaClick(Sender: TObject);
     procedure miResetearValoresClick(Sender: TObject);
     procedure miSalirClick(Sender: TObject);
     procedure miSoloPrecomentadasClick(Sender: TObject);
@@ -107,10 +131,23 @@ type
     FLastBatchDir: string;
     FLoadPressed: Boolean;
     FOnlyPrecommentedVariables: Boolean;
-    FProcess: TProcess;
-    FProcessStart: TDateTime;
     FProcessTimer: TTimer;
     FStartupDir: string;
+    FActiveTabIndex: Integer;
+    FEditingTabIndex: Integer;
+    FEditingTabOriginalName: string;
+    FLastTabClickIndex: Integer;
+    FLastTabClickTime: DWORD;
+    FSuppressTabChange: Boolean;
+    FTabDragIndex: Integer;
+    FTabDragStartPos: TPoint;
+    FTabDragging: Boolean;
+    FNewTabButton: TSpeedButton;
+    FTabNameEdit: TEdit;
+    FTabNameEditTimer: TTimer;
+    FTabNameMouseDown: Boolean;
+    FTabControl: TPageControl;
+    FTabs: TBatchTabList;
     FExecutePressed: Boolean;
     FUpdatingVariableControls: Boolean;
     FVariables: TVariableList;
@@ -124,6 +161,12 @@ type
     function ConfigureEditor: Boolean;
     procedure CreateAppIcon;
     procedure CreateExecuteIcon;
+    function ActiveBatchTab: TBatchTab;
+    procedure AddBatchTab(const AFileName: string; const AActivate: Boolean);
+    procedure ApplySavedVariableValues(ATab: TBatchTab);
+    procedure BeginRenameBatchTab(const AIndex: Integer);
+    procedure CancelRenameBatchTab;
+    procedure CommitRenameBatchTab;
     function CmdQuote(const S: string): string;
     procedure DefineVariableAsDefault(AItem: TVariableItem);
     procedure EditBatchFile;
@@ -132,20 +175,44 @@ type
     function FormatElapsed(const AStart, AFinish: TDateTime): string;
     procedure LayoutActionButtons;
     procedure LayoutExecuteIcon;
+    procedure LayoutNewTabButton;
+    procedure CreateTabControl;
     procedure DefineVisibleVariablesAsDefault;
     procedure LayoutVariableControls;
     procedure LoadDroppedBatchFile(const FileName: string);
     procedure LoadBatchVariables(const FileName: string);
+    procedure LoadBatchVariablesForActiveTab(const FileName: string);
     procedure PositionExecuteButton;
     procedure LoadSettings;
+    procedure LoadTabToUi(ATab: TBatchTab);
+    function FindNewTabIndex: Integer;
+    procedure PageControlChange(Sender: TObject);
+    procedure PageControlMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure PageControlMouseMove(Sender: TObject; Shift: TShiftState; X,
+      Y: Integer);
+    procedure PageControlMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure NewTabButtonClick(Sender: TObject);
+    procedure RefreshTabCaption(ATab: TBatchTab);
+    procedure RenameBatchTab(const AIndex: Integer);
     procedure RemoveVisibleVariableDefaults;
     procedure RemoveVariableDefault(AItem: TVariableItem);
     procedure ResetVariablesToDefault;
+    procedure CloseBatchTab(const AIndex: Integer);
+    procedure SaveActiveTabState;
     procedure SaveSettings;
+    procedure SaveVariableValues(ATab: TBatchTab);
+    procedure TabNameEditExit(Sender: TObject);
+    procedure TabNameEditKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure TabNameEditTimerTimer(Sender: TObject);
+    function IsOverTabCloseButton(const X, Y: Integer; out AIndex: Integer): Boolean;
+    function TabIndexAt(const X, Y: Integer; const AIncludeCloseButton: Boolean): Integer;
+    procedure SwapBatchTabs(const AIndex1, AIndex2: Integer);
     procedure UpdateActionButtonVisual(AButton: TPanel; APressed: Boolean);
     procedure SetStatus(const S: string);
     procedure UpdateExecuteButtonVisual;
-    procedure UpdateRunState(const ARunning: Boolean);
+    procedure UpdateRunState;
   end;
 
 var
@@ -177,23 +244,247 @@ begin
   end;
 end;
 
+constructor TBatchTab.Create;
+begin
+  inherited Create;
+  BatchFileName := '';
+  CustomName := '';
+  Output := TStringList.Create;
+  Process := nil;
+  ProcessStart := 0;
+  StatusText := 'Listo';
+  Values := TStringList.Create;
+end;
+
+destructor TBatchTab.Destroy;
+begin
+  FreeAndNil(Process);
+  Output.Free;
+  Values.Free;
+  inherited Destroy;
+end;
+
 { TMainForm }
+
+function TMainForm.ActiveBatchTab: TBatchTab;
+begin
+  Result := nil;
+  if (FTabs = nil) or (FTabs.Count = 0) then
+    Exit;
+  if (FTabControl = nil) or (FTabControl.PageIndex < 0) or (FTabControl.PageIndex >= FTabs.Count) then
+    Result := FTabs[0]
+  else
+    Result := FTabs[FTabControl.PageIndex];
+end;
+
+procedure TMainForm.AddBatchTab(const AFileName: string; const AActivate: Boolean);
+var
+  ExistingNewIndex: Integer;
+  NewTab: TBatchTab;
+  Sheet: TTabSheet;
+begin
+  ExistingNewIndex := FindNewTabIndex;
+  if (AFileName = '') and (ExistingNewIndex >= 0) then
+  begin
+    if AActivate and (FTabControl <> nil) and (ExistingNewIndex < FTabControl.PageCount) then
+    begin
+      SaveActiveTabState;
+      FSuppressTabChange := True;
+      try
+        FTabControl.PageIndex := ExistingNewIndex;
+        FActiveTabIndex := ExistingNewIndex;
+      finally
+        FSuppressTabChange := False;
+      end;
+      LoadTabToUi(FTabs[ExistingNewIndex]);
+    end;
+    Exit;
+  end;
+
+  NewTab := TBatchTab.Create;
+  NewTab.BatchFileName := AFileName;
+  if AFileName <> '' then
+    NewTab.StatusText := 'Listo';
+  FTabs.Add(NewTab);
+
+  Sheet := TTabSheet.Create(FTabControl);
+  Sheet.PageControl := FTabControl;
+  Sheet.Tag := PtrInt(NewTab);
+  RefreshTabCaption(NewTab);
+
+  if AActivate then
+  begin
+    SaveActiveTabState;
+    FSuppressTabChange := True;
+    try
+      FTabControl.ActivePage := Sheet;
+      FActiveTabIndex := FTabControl.PageIndex;
+    finally
+      FSuppressTabChange := False;
+    end;
+    LoadTabToUi(NewTab);
+  end;
+end;
+
+procedure TMainForm.ApplySavedVariableValues(ATab: TBatchTab);
+var
+  Item: TVariableItem;
+  I: Integer;
+begin
+  if ATab = nil then
+    Exit;
+
+  for Item in FVariables do
+  begin
+    I := ATab.Values.IndexOfName(Item.VarName);
+    if I >= 0 then
+      Item.ValueEdit.Text := ATab.Values.ValueFromIndex[I];
+  end;
+end;
+
+procedure TMainForm.BeginRenameBatchTab(const AIndex: Integer);
+var
+  R: TRect;
+  Tab: TBatchTab;
+  EditText: string;
+begin
+  if (AIndex < 0) or (AIndex >= FTabs.Count) or (FTabControl = nil) then
+    Exit;
+
+  Tab := FTabs[AIndex];
+  EditText := Tab.CustomName;
+  if (EditText = '') and (Tab.BatchFileName <> '') then
+    EditText := ChangeFileExt(ExtractFileName(Tab.BatchFileName), '')
+  else if EditText = '' then
+    EditText := NEW_TAB_CAPTION;
+
+  if FTabNameEdit = nil then
+  begin
+    FTabNameEdit := TEdit.Create(Self);
+    FTabNameEdit.Parent := FTabControl;
+    FTabNameEdit.OnExit := @TabNameEditExit;
+    FTabNameEdit.OnKeyDown := @TabNameEditKeyDown;
+  end;
+
+  R := FTabControl.TabRect(AIndex);
+  FEditingTabIndex := AIndex;
+  FEditingTabOriginalName := EditText;
+  FTabNameEdit.SetBounds(R.Left + 6, R.Top + 4, (R.Right - R.Left) - 34, (R.Bottom - R.Top) - 8);
+  if FTabNameEdit.Width < 80 then
+    FTabNameEdit.Width := 80;
+  FTabNameEdit.Text := EditText;
+  FTabNameEdit.Visible := True;
+  FTabNameEdit.BringToFront;
+  FTabNameEdit.SetFocus;
+  FTabNameEdit.SelectAll;
+  FTabNameMouseDown := GetKeyState(VK_LBUTTON) < 0;
+  FTabNameEditTimer.Enabled := True;
+end;
+
+procedure TMainForm.CancelRenameBatchTab;
+begin
+  if FTabNameEdit <> nil then
+    FTabNameEdit.Visible := False;
+  if FTabNameEditTimer <> nil then
+    FTabNameEditTimer.Enabled := False;
+  FEditingTabIndex := -1;
+  FEditingTabOriginalName := '';
+end;
+
+procedure TMainForm.CommitRenameBatchTab;
+var
+  Tab: TBatchTab;
+begin
+  if (FTabNameEdit = nil) or (FEditingTabIndex < 0) or (FEditingTabIndex >= FTabs.Count) then
+  begin
+    CancelRenameBatchTab;
+    Exit;
+  end;
+
+  Tab := FTabs[FEditingTabIndex];
+  if (Trim(FTabNameEdit.Text) = '') or SameText(Trim(FTabNameEdit.Text), NEW_TAB_CAPTION) then
+  begin
+    MessageDlg('El nombre de la pestaña no puede estar vacío ni ser ' + NEW_TAB_CAPTION + '.', mtWarning, [mbOK], 0);
+    FTabNameEdit.Text := FEditingTabOriginalName;
+    FTabNameEdit.SelectAll;
+    FTabNameEdit.SetFocus;
+    Exit;
+  end;
+  Tab.CustomName := Trim(FTabNameEdit.Text);
+  FTabNameEdit.Visible := False;
+  if FTabNameEditTimer <> nil then
+    FTabNameEditTimer.Enabled := False;
+  FEditingTabIndex := -1;
+  FEditingTabOriginalName := '';
+  RefreshTabCaption(Tab);
+end;
+
+procedure TMainForm.CreateTabControl;
+begin
+  FTabControl := TPageControl.Create(Self);
+  FTabControl.Parent := Self;
+  FTabControl.Align := alTop;
+  FTabControl.Height := 48;
+  FTabControl.TabOrder := 0;
+  FTabControl.OnChange := @PageControlChange;
+  FTabControl.OnMouseDown := @PageControlMouseDown;
+  FTabControl.OnMouseMove := @PageControlMouseMove;
+  FTabControl.OnMouseUp := @PageControlMouseUp;
+  FTabControl.ShowTabs := True;
+
+  FNewTabButton := TSpeedButton.Create(Self);
+  FNewTabButton.Parent := Self;
+  FNewTabButton.Caption := '+';
+  FNewTabButton.Cursor := crHandPoint;
+  FNewTabButton.Flat := False;
+  FNewTabButton.Font.Height := -24;
+  FNewTabButton.Font.Style := [fsBold];
+  FNewTabButton.Hint := 'Nueva pestaña';
+  FNewTabButton.ShowHint := True;
+  FNewTabButton.OnClick := @NewTabButtonClick;
+  LayoutNewTabButton;
+
+  miNuevaPestana := TMenuItem.Create(MainMenu1);
+  miNuevaPestana.Caption := 'Nueva pestaña';
+  miNuevaPestana.OnClick := @miNuevaPestanaClick;
+  miArchivo.Insert(0, miNuevaPestana);
+
+  miCerrarPestana := TMenuItem.Create(MainMenu1);
+  miCerrarPestana.Caption := 'Cerrar pestaña';
+  miCerrarPestana.OnClick := @miCerrarPestanaClick;
+  miArchivo.Insert(1, miCerrarPestana);
+end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
+  FTabs := TBatchTabList.Create(True);
   FVariables := TVariableList.Create(True);
-  FProcess := nil;
   FBatchFileName := '';
   FConfigFileName := ChangeFileExt(Application.ExeName, '.ini');
   FEditorPath := '';
   FInitialLoadDone := False;
   FLastBatchDir := '';
-  FProcessStart := 0;
   FProcessTimer := TTimer.Create(Self);
   FProcessTimer.Enabled := False;
   FProcessTimer.Interval := 300;
   FProcessTimer.OnTimer := @ProcessTimerTimer;
   FStartupDir := GetCurrentDir;
+  FActiveTabIndex := 0;
+  FEditingTabIndex := -1;
+  FLastTabClickIndex := -1;
+  FLastTabClickTime := 0;
+  FSuppressTabChange := False;
+  FTabDragIndex := -1;
+  FTabDragStartPos.X := 0;
+  FTabDragStartPos.Y := 0;
+  FTabDragging := False;
+  FNewTabButton := nil;
+  FTabNameEdit := nil;
+  FTabNameEditTimer := TTimer.Create(Self);
+  FTabNameEditTimer.Enabled := False;
+  FTabNameEditTimer.Interval := 40;
+  FTabNameEditTimer.OnTimer := @TabNameEditTimerTimer;
+  FTabNameMouseDown := False;
   FExecutePressed := False;
   FUpdatingVariableControls := False;
   FOnlyPrecommentedVariables := False;
@@ -209,6 +500,7 @@ begin
   btnExecute.Width := 72;
   FLoadPressed := False;
   miConfiguracion.Caption := 'Configuración';
+  CreateTabControl;
   CreateAppIcon;
   CreateExecuteIcon;
   UpdateActionButtonVisual(btnLoad, False);
@@ -216,18 +508,20 @@ begin
   UpdateExecuteButtonVisual;
   LayoutActionButtons;
   LoadSettings;
+  if FTabs.Count = 0 then
+    AddBatchTab('', True);
   miSoloPrecomentadas.Checked := FOnlyPrecommentedVariables;
   PositionExecuteButton;
   SetStatus('Listo');
-  UpdateRunState(False);
+  UpdateRunState;
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
   SaveSettings;
   FProcessTimer.Enabled := False;
-  FreeAndNil(FProcess);
   FVariables.Free;
+  FTabs.Free;
 end;
 
 procedure TMainForm.FormShow(Sender: TObject);
@@ -238,8 +532,7 @@ begin
   LayoutActionButtons;
   LayoutVariableControls;
   PositionExecuteButton;
-  if FileExists(FBatchFileName) then
-    LoadBatchVariables(FBatchFileName);
+  LoadTabToUi(ActiveBatchTab);
 end;
 
 procedure TMainForm.FormResize(Sender: TObject);
@@ -249,10 +542,18 @@ begin
   LayoutActionButtons;
   LayoutVariableControls;
   PositionExecuteButton;
+  LayoutNewTabButton;
 end;
 
 procedure TMainForm.btnLoadClick(Sender: TObject);
 begin
+  if (FTabNameEdit <> nil) and FTabNameEdit.Visible then
+  begin
+    CommitRenameBatchTab;
+    if FTabNameEdit.Visible then
+      Exit;
+  end;
+
   if DirectoryExists(FLastBatchDir) then
     OpenDialog1.InitialDir := FLastBatchDir
   else
@@ -264,7 +565,7 @@ begin
     OpenDialog1.FileName := '';
 
   if OpenDialog1.Execute then
-    LoadBatchVariables(OpenDialog1.FileName);
+    LoadBatchVariablesForActiveTab(OpenDialog1.FileName);
 end;
 
 procedure TMainForm.btnLoadMouseDown(Sender: TObject; Button: TMouseButton;
@@ -321,8 +622,13 @@ begin
 end;
 
 procedure TMainForm.SetStatus(const S: string);
+var
+  Tab: TBatchTab;
 begin
   StatusBar1.SimpleText := S;
+  Tab := ActiveBatchTab;
+  if Tab <> nil then
+    Tab.StatusText := S;
 end;
 
 procedure TMainForm.UpdateExecuteButtonVisual;
@@ -374,22 +680,32 @@ begin
 end;
 
 procedure TMainForm.btnClearOutputClick(Sender: TObject);
+var
+  Tab: TBatchTab;
 begin
   MemoOutput.Clear;
+  Tab := ActiveBatchTab;
+  if Tab <> nil then
+    Tab.Output.Clear;
   SetStatus('Consola limpia');
 end;
 
 procedure TMainForm.btnExecuteClick(Sender: TObject);
 var
   Proc: TProcess;
+  Tab: TBatchTab;
 begin
+  Tab := ActiveBatchTab;
+  if Tab = nil then
+    Exit;
+
   if FBatchFileName = '' then
   begin
     MessageDlg('Debe cargar un archivo .bat.', mtWarning, [mbOK], 0);
     Exit;
   end;
 
-  if Assigned(FProcess) then
+  if Assigned(Tab.Process) then
   begin
     MessageDlg('Ya hay una ejecución en curso.', mtWarning, [mbOK], 0);
     Exit;
@@ -406,16 +722,18 @@ begin
   Proc.ShowWindow := swoShowNormal;
   Proc.Execute;
 
-  FProcess := Proc;
-  FProcessStart := Now;
+  Tab.Process := Proc;
+  Tab.ProcessStart := Now;
   MemoOutput.Clear;
-  MemoOutput.Lines.Add('Inicio: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', FProcessStart));
+  MemoOutput.Lines.Add('Inicio: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Tab.ProcessStart));
   MemoOutput.Lines.Add('Archivo: ' + FBatchFileName);
   if FVariables.Count = 0 then
     MemoOutput.Lines.Add('Ejecución sin reemplazos desde la GUI.');
-  SetStatus('Ejecutando...');
-  UpdateRunState(True);
-  BringProcessWindowToFront(FProcess.ProcessID);
+  Tab.Output.Assign(MemoOutput.Lines);
+  Tab.StatusText := 'Ejecutando...';
+  SetStatus(Tab.StatusText);
+  UpdateRunState;
+  BringProcessWindowToFront(Tab.Process.ProcessID);
   FProcessTimer.Enabled := True;
 end;
 
@@ -455,25 +773,40 @@ end;
 procedure TMainForm.ProcessTimerTimer(Sender: TObject);
 var
   FinishTime: TDateTime;
+  I: Integer;
+  RunningCount: Integer;
+  Tab: TBatchTab;
 begin
-  if not Assigned(FProcess) then
+  RunningCount := 0;
+  for I := 0 to FTabs.Count - 1 do
   begin
-    FProcessTimer.Enabled := False;
-    Exit;
+    Tab := FTabs[I];
+    if not Assigned(Tab.Process) then
+      Continue;
+
+    if Tab.Process.Running then
+    begin
+      Inc(RunningCount);
+      Continue;
+    end;
+
+    FinishTime := Now;
+    Tab.Output.Add('Fin: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', FinishTime));
+    Tab.Output.Add('Duración: ' + FormatElapsed(Tab.ProcessStart, FinishTime));
+    Tab.Output.Add('Finalizado. Código de salida: ' + IntToStr(Tab.Process.ExitStatus));
+    FreeAndNil(Tab.Process);
+    Tab.StatusText := 'Finalizado';
+
+    if Tab = ActiveBatchTab then
+    begin
+      MemoOutput.Lines.Assign(Tab.Output);
+      SetStatus(Tab.StatusText);
+      UpdateRunState;
+      BringSelfToFront;
+    end;
   end;
 
-  if FProcess.Running then
-    Exit;
-
-  FinishTime := Now;
-  FProcessTimer.Enabled := False;
-  MemoOutput.Lines.Add('Fin: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', FinishTime));
-  MemoOutput.Lines.Add('Duración: ' + FormatElapsed(FProcessStart, FinishTime));
-  MemoOutput.Lines.Add('Finalizado. Código de salida: ' + IntToStr(FProcess.ExitStatus));
-  FreeAndNil(FProcess);
-  UpdateRunState(False);
-  SetStatus('Finalizado');
-  BringSelfToFront;
+  FProcessTimer.Enabled := RunningCount > 0;
 end;
 
 procedure TMainForm.ClearVariableControls;
@@ -805,8 +1138,7 @@ procedure TMainForm.miSoloPrecomentadasClick(Sender: TObject);
 begin
   FOnlyPrecommentedVariables := not FOnlyPrecommentedVariables;
   miSoloPrecomentadas.Checked := FOnlyPrecommentedVariables;
-  if FileExists(FBatchFileName) then
-    LoadBatchVariables(FBatchFileName);
+  LoadTabToUi(ActiveBatchTab);
 end;
 
 procedure TMainForm.EditBatchFile;
@@ -849,7 +1181,28 @@ begin
     Exit;
   end;
 
+  LoadBatchVariablesForActiveTab(FileName);
+end;
+
+procedure TMainForm.LoadBatchVariablesForActiveTab(const FileName: string);
+var
+  Tab: TBatchTab;
+begin
+  Tab := ActiveBatchTab;
+  if Tab = nil then
+  begin
+    AddBatchTab(FileName, True);
+    Tab := ActiveBatchTab;
+  end;
+  if Tab = nil then
+    Exit;
+
+  Tab.BatchFileName := FileName;
+  Tab.Values.Clear;
   LoadBatchVariables(FileName);
+  Tab.Output.Assign(MemoOutput.Lines);
+  Tab.StatusText := StatusBar1.SimpleText;
+  RefreshTabCaption(Tab);
 end;
 
 function TMainForm.FormatElapsed(const AStart, AFinish: TDateTime): string;
@@ -890,6 +1243,20 @@ begin
   btnEditBatch.Left := btnLoad.Left + btnLoad.Width + Gap;
   btnEditBatch.Top := btnLoad.Top;
   btnEditBatch.Width := ButtonWidth;
+end;
+
+procedure TMainForm.LayoutNewTabButton;
+begin
+  if (FTabControl = nil) or (FNewTabButton = nil) then
+    Exit;
+
+  FNewTabButton.SetBounds(
+    ClientWidth - TAB_ADD_BUTTON_SIZE - TAB_ADD_BUTTON_MARGIN,
+    FTabControl.Top + TAB_ADD_BUTTON_MARGIN,
+    TAB_ADD_BUTTON_SIZE,
+    TAB_ADD_BUTTON_SIZE
+  );
+  FNewTabButton.BringToFront;
 end;
 
 procedure TMainForm.DefineVariableAsDefault(AItem: TVariableItem);
@@ -1111,6 +1478,454 @@ begin
   VarName := Trim(Copy(S, 1, P - 1));
   VarValue := Copy(S, P + 1, MaxInt);
   Result := VarName <> '';
+end;
+
+procedure TMainForm.LoadTabToUi(ATab: TBatchTab);
+begin
+  if ATab = nil then
+  begin
+    FBatchFileName := '';
+    Caption := 'Batch Runner';
+    ClearVariableControls;
+    MemoOutput.Clear;
+    SetStatus('Listo');
+    UpdateRunState;
+    Exit;
+  end;
+
+  FBatchFileName := ATab.BatchFileName;
+  MemoOutput.Lines.Assign(ATab.Output);
+  if FileExists(ATab.BatchFileName) then
+  begin
+    LoadBatchVariables(ATab.BatchFileName);
+    ApplySavedVariableValues(ATab);
+  end
+  else
+  begin
+    ClearVariableControls;
+    Caption := 'Batch Runner';
+  end;
+
+  if ATab.StatusText <> '' then
+    SetStatus(ATab.StatusText)
+  else
+    SetStatus('Listo');
+  UpdateRunState;
+end;
+
+procedure TMainForm.PageControlChange(Sender: TObject);
+begin
+  if FSuppressTabChange then
+    Exit;
+  SaveActiveTabState;
+  LoadTabToUi(ActiveBatchTab);
+  if FTabControl <> nil then
+    FActiveTabIndex := FTabControl.PageIndex;
+end;
+
+function TMainForm.FindNewTabIndex: Integer;
+var
+  I: Integer;
+begin
+  Result := -1;
+  if FTabs = nil then
+    Exit;
+
+  for I := 0 to FTabs.Count - 1 do
+    if (FTabs[I].BatchFileName = '') and (FTabs[I].CustomName = '') then
+    begin
+      Result := I;
+      Exit;
+    end;
+end;
+
+procedure TMainForm.RefreshTabCaption(ATab: TBatchTab);
+var
+  I: Integer;
+  CaptionText: string;
+begin
+  if ATab = nil then
+    Exit;
+  if ATab.CustomName <> '' then
+    CaptionText := ATab.CustomName
+  else if ATab.BatchFileName = '' then
+    CaptionText := NEW_TAB_CAPTION
+  else
+    CaptionText := ChangeFileExt(ExtractFileName(ATab.BatchFileName), '');
+  if Length(CaptionText) < 8 then
+    CaptionText := CaptionText + StringOfChar(' ', 8 - Length(CaptionText));
+
+  for I := 0 to FTabs.Count - 1 do
+    if FTabs[I] = ATab then
+    begin
+      if (FTabControl <> nil) and (I < FTabControl.PageCount) then
+        FTabControl.Pages[I].Caption := CaptionText + '  x';
+      Break;
+    end;
+end;
+
+procedure TMainForm.PageControlMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+var
+  I: Integer;
+  R: TRect;
+  ClickTime: DWORD;
+begin
+  if Button <> mbLeft then
+    Exit;
+
+  if (FTabNameEdit <> nil) and FTabNameEdit.Visible then
+  begin
+    CommitRenameBatchTab;
+    if FTabNameEdit.Visible then
+      Exit;
+  end;
+
+  if IsOverTabCloseButton(X, Y, I) then
+  begin
+    CloseBatchTab(I);
+    Exit;
+  end;
+
+  FTabDragIndex := -1;
+  FTabDragging := False;
+  for I := 0 to FTabControl.PageCount - 1 do
+  begin
+    R := FTabControl.TabRect(I);
+    if (X >= R.Left) and (X < R.Right - TAB_CLOSE_HIT_WIDTH) and (Y >= R.Top) and (Y <= R.Bottom) then
+    begin
+      FTabDragIndex := I;
+      FTabDragStartPos.X := X;
+      FTabDragStartPos.Y := Y;
+      ClickTime := GetTickCount;
+      if (FLastTabClickIndex = I) and ((ClickTime - FLastTabClickTime) <= DWORD(GetDoubleClickTime)) then
+      begin
+        BeginRenameBatchTab(I);
+        FTabDragIndex := -1;
+        FLastTabClickIndex := -1;
+        FLastTabClickTime := 0;
+      end
+      else
+      begin
+        FLastTabClickIndex := I;
+        FLastTabClickTime := ClickTime;
+      end;
+      Exit;
+    end;
+  end;
+end;
+
+procedure TMainForm.PageControlMouseMove(Sender: TObject; Shift: TShiftState; X,
+  Y: Integer);
+var
+  TabIndex: Integer;
+begin
+  if (FTabDragIndex >= 0) and (ssLeft in Shift) then
+  begin
+    if (not FTabDragging) and
+      ((Abs(X - FTabDragStartPos.X) > GetSystemMetrics(SM_CXDRAG)) or
+       (Abs(Y - FTabDragStartPos.Y) > GetSystemMetrics(SM_CYDRAG))) then
+    begin
+      FTabDragging := True;
+      FLastTabClickIndex := -1;
+      FLastTabClickTime := 0;
+    end;
+  end;
+
+  if FTabDragging then
+    FTabControl.Cursor := crSizeWE
+  else if IsOverTabCloseButton(X, Y, TabIndex) then
+    FTabControl.Cursor := crHandPoint
+  else
+    FTabControl.Cursor := crDefault;
+end;
+
+procedure TMainForm.PageControlMouseUp(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+var
+  TargetIndex: Integer;
+begin
+  if Button <> mbLeft then
+    Exit;
+
+  if FTabDragging and (FTabDragIndex >= 0) then
+  begin
+    TargetIndex := TabIndexAt(X, Y, True);
+    if (TargetIndex >= 0) and (TargetIndex <> FTabDragIndex) then
+      SwapBatchTabs(FTabDragIndex, TargetIndex);
+  end;
+
+  FTabDragIndex := -1;
+  FTabDragging := False;
+  FTabControl.Cursor := crDefault;
+end;
+
+procedure TMainForm.NewTabButtonClick(Sender: TObject);
+begin
+  miNuevaPestanaClick(Sender);
+end;
+
+procedure TMainForm.RenameBatchTab(const AIndex: Integer);
+var
+  NewName: string;
+  Tab: TBatchTab;
+begin
+  if (AIndex < 0) or (AIndex >= FTabs.Count) then
+    Exit;
+
+  Tab := FTabs[AIndex];
+  NewName := Tab.CustomName;
+  if (NewName = '') and (Tab.BatchFileName <> '') then
+    NewName := ChangeFileExt(ExtractFileName(Tab.BatchFileName), '');
+
+  if InputQuery('Nombre de pestaña', 'Nombre:', NewName) then
+  begin
+    Tab.CustomName := Trim(NewName);
+    RefreshTabCaption(Tab);
+  end;
+end;
+
+procedure TMainForm.TabNameEditExit(Sender: TObject);
+begin
+  CommitRenameBatchTab;
+end;
+
+procedure TMainForm.TabNameEditKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if Key = VK_RETURN then
+  begin
+    Key := 0;
+    CommitRenameBatchTab;
+  end
+  else if Key = VK_ESCAPE then
+  begin
+    Key := 0;
+    CancelRenameBatchTab;
+  end;
+end;
+
+procedure TMainForm.TabNameEditTimerTimer(Sender: TObject);
+var
+  BottomRight: TPoint;
+  IsDown: Boolean;
+  MousePos: TPoint;
+  R: TRect;
+  TopLeft: TPoint;
+begin
+  if (FTabNameEdit = nil) or (not FTabNameEdit.Visible) then
+  begin
+    FTabNameEditTimer.Enabled := False;
+    FTabNameMouseDown := False;
+    Exit;
+  end;
+
+  IsDown := GetKeyState(VK_LBUTTON) < 0;
+  if IsDown and (not FTabNameMouseDown) then
+  begin
+    if GetCursorPos(MousePos) then
+    begin
+      TopLeft.X := 0;
+      TopLeft.Y := 0;
+      TopLeft := FTabNameEdit.ClientToScreen(TopLeft);
+      BottomRight.X := FTabNameEdit.Width;
+      BottomRight.Y := FTabNameEdit.Height;
+      BottomRight := FTabNameEdit.ClientToScreen(BottomRight);
+      R.Left := TopLeft.X;
+      R.Top := TopLeft.Y;
+      R.Right := BottomRight.X;
+      R.Bottom := BottomRight.Y;
+      if not PtInRect(R, MousePos) then
+        CommitRenameBatchTab;
+    end;
+  end;
+  FTabNameMouseDown := IsDown;
+end;
+
+function TMainForm.IsOverTabCloseButton(const X, Y: Integer; out AIndex: Integer): Boolean;
+var
+  CloseLeft: Integer;
+  I: Integer;
+  R: TRect;
+begin
+  Result := False;
+  AIndex := -1;
+  if FTabControl = nil then
+    Exit;
+
+  for I := 0 to FTabControl.PageCount - 1 do
+  begin
+    R := FTabControl.TabRect(I);
+    if (Y < R.Top) or (Y > R.Bottom) then
+      Continue;
+
+    CloseLeft := R.Right - TAB_CLOSE_HIT_WIDTH;
+    if CloseLeft < R.Left + TAB_MIN_CAPTION_WIDTH then
+      CloseLeft := R.Left + TAB_MIN_CAPTION_WIDTH;
+    if CloseLeft > R.Right - 16 then
+      CloseLeft := R.Right - 16;
+
+    if (X >= CloseLeft) and (X <= R.Right) then
+    begin
+      AIndex := I;
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
+function TMainForm.TabIndexAt(const X, Y: Integer; const AIncludeCloseButton: Boolean): Integer;
+var
+  I: Integer;
+  RightLimit: Integer;
+  R: TRect;
+begin
+  Result := -1;
+  if FTabControl = nil then
+    Exit;
+
+  for I := 0 to FTabControl.PageCount - 1 do
+  begin
+    R := FTabControl.TabRect(I);
+    if AIncludeCloseButton then
+      RightLimit := R.Right
+    else
+      RightLimit := R.Right - TAB_CLOSE_HIT_WIDTH;
+
+    if (X >= R.Left) and (X < RightLimit) and (Y >= R.Top) and (Y <= R.Bottom) then
+    begin
+      Result := I;
+      Exit;
+    end;
+  end;
+end;
+
+procedure TMainForm.SwapBatchTabs(const AIndex1, AIndex2: Integer);
+var
+  ActiveTab: TBatchTab;
+  Sheet1: TTabSheet;
+  Sheet2: TTabSheet;
+begin
+  if (FTabs = nil) or (FTabControl = nil) then
+    Exit;
+  if (AIndex1 < 0) or (AIndex2 < 0) or
+    (AIndex1 >= FTabs.Count) or (AIndex2 >= FTabs.Count) or
+    (AIndex1 >= FTabControl.PageCount) or (AIndex2 >= FTabControl.PageCount) or
+    (AIndex1 = AIndex2) then
+    Exit;
+
+  SaveActiveTabState;
+  ActiveTab := ActiveBatchTab;
+  Sheet1 := FTabControl.Pages[AIndex1];
+  Sheet2 := FTabControl.Pages[AIndex2];
+
+  FSuppressTabChange := True;
+  try
+    FTabs.Exchange(AIndex1, AIndex2);
+    Sheet1.PageIndex := AIndex2;
+    Sheet2.PageIndex := AIndex1;
+    if ActiveTab <> nil then
+      FTabControl.PageIndex := FTabs.IndexOf(ActiveTab);
+    FActiveTabIndex := FTabControl.PageIndex;
+  finally
+    FSuppressTabChange := False;
+  end;
+  LoadTabToUi(ActiveBatchTab);
+end;
+
+procedure TMainForm.SaveActiveTabState;
+var
+  Tab: TBatchTab;
+begin
+  if (FTabs = nil) or (FTabs.Count = 0) then
+    Exit;
+  if (FActiveTabIndex < 0) or (FActiveTabIndex >= FTabs.Count) then
+    Tab := ActiveBatchTab
+  else
+    Tab := FTabs[FActiveTabIndex];
+  if Tab = nil then
+    Exit;
+  Tab.BatchFileName := FBatchFileName;
+  Tab.Output.Assign(MemoOutput.Lines);
+  Tab.StatusText := StatusBar1.SimpleText;
+  SaveVariableValues(Tab);
+  RefreshTabCaption(Tab);
+end;
+
+procedure TMainForm.SaveVariableValues(ATab: TBatchTab);
+var
+  Item: TVariableItem;
+begin
+  if ATab = nil then
+    Exit;
+  ATab.Values.Clear;
+  for Item in FVariables do
+    ATab.Values.Values[Item.VarName] := Item.ValueEdit.Text;
+end;
+
+procedure TMainForm.CloseBatchTab(const AIndex: Integer);
+var
+  Index: Integer;
+  Tab: TBatchTab;
+begin
+  if (FTabs = nil) or (FTabs.Count = 0) or (AIndex < 0) or (AIndex >= FTabs.Count) then
+    Exit;
+
+  Tab := FTabs[AIndex];
+  if Assigned(Tab.Process) then
+  begin
+    MessageDlg('No se puede cerrar una pestaña con ejecución en curso.', mtWarning, [mbOK], 0);
+    Exit;
+  end;
+
+  if FTabs.Count = 1 then
+  begin
+    if (Tab.BatchFileName = '') and (Tab.CustomName = '') then
+    begin
+      MessageDlg('Debe quedar al menos una pestaña.', mtInformation, [mbOK], 0);
+      Exit;
+    end;
+
+    Tab.BatchFileName := '';
+    Tab.CustomName := '';
+    Tab.Output.Clear;
+    Tab.Values.Clear;
+    Tab.StatusText := 'Listo';
+    FBatchFileName := '';
+    FLastBatchDir := FStartupDir;
+    RefreshTabCaption(Tab);
+    LoadTabToUi(Tab);
+    Exit;
+  end;
+
+  if (FTabs = nil) or (FTabs.Count = 0) then
+  begin
+    MessageDlg('Debe quedar al menos una pestaña.', mtInformation, [mbOK], 0);
+    Exit;
+  end;
+
+  if (AIndex < 0) or (AIndex >= FTabs.Count) then
+    Exit;
+
+  Tab := FTabs[AIndex];
+  if Assigned(Tab.Process) then
+  begin
+    MessageDlg('No se puede cerrar una pestaña con ejecución en curso.', mtWarning, [mbOK], 0);
+    Exit;
+  end;
+
+  Index := AIndex;
+  FSuppressTabChange := True;
+  try
+    FTabControl.Pages[Index].Free;
+    FTabs.Delete(Index);
+    if Index >= FTabs.Count then
+      Index := FTabs.Count - 1;
+    FTabControl.PageIndex := Index;
+    FActiveTabIndex := Index;
+  finally
+    FSuppressTabChange := False;
+  end;
+  LoadTabToUi(ActiveBatchTab);
 end;
 
 procedure TMainForm.LoadBatchVariables(const FileName: string);
@@ -1353,7 +2168,11 @@ end;
 procedure TMainForm.LoadSettings;
 var
   Ini: TIniFile;
+  I: Integer;
   LastFile: string;
+  TabCount: Integer;
+  TabName: string;
+  TabFile: string;
 begin
   Ini := TIniFile.Create(FConfigFileName);
   try
@@ -1361,7 +2180,39 @@ begin
     FLastBatchDir := Ini.ReadString('General', 'LastBatchDir', FStartupDir);
     LastFile := Ini.ReadString('General', 'LastBatchFile', '');
     FOnlyPrecommentedVariables := Ini.ReadBool('General', 'OnlyPrecommentedVariables', False);
-    FBatchFileName := LastFile;
+    TabCount := Ini.ReadInteger('Tabs', 'Count', 0);
+    for I := 0 to TabCount - 1 do
+    begin
+      TabFile := Ini.ReadString('Tab' + IntToStr(I + 1), 'BatchFile', '');
+      TabName := Ini.ReadString('Tab' + IntToStr(I + 1), 'Name', '');
+      if SameText(Trim(TabName), NEW_TAB_CAPTION) then
+        TabName := '';
+      AddBatchTab(TabFile, False);
+      if FTabs.Count > 0 then
+      begin
+        FTabs[FTabs.Count - 1].CustomName := TabName;
+        RefreshTabCaption(FTabs[FTabs.Count - 1]);
+      end;
+    end;
+    if (FTabs.Count = 0) and (LastFile <> '') then
+      AddBatchTab(LastFile, False);
+    if FTabs.Count > 0 then
+    begin
+      FActiveTabIndex := Ini.ReadInteger('Tabs', 'ActiveIndex', 0);
+      if FActiveTabIndex >= FTabs.Count then
+        FActiveTabIndex := FTabs.Count - 1;
+      if FActiveTabIndex < 0 then
+        FActiveTabIndex := 0;
+      if FTabControl.PageCount > FActiveTabIndex then
+      begin
+        FSuppressTabChange := True;
+        try
+          FTabControl.PageIndex := FActiveTabIndex;
+        finally
+          FSuppressTabChange := False;
+        end;
+      end;
+    end;
   finally
     Ini.Free;
   end;
@@ -1407,14 +2258,34 @@ end;
 procedure TMainForm.SaveSettings;
 var
   Ini: TIniFile;
+  I: Integer;
+  Sections: TStringList;
 begin
+  SaveActiveTabState;
   Ini := TIniFile.Create(FConfigFileName);
+  Sections := TStringList.Create;
   try
     Ini.WriteString('General', 'EditorPath', FEditorPath);
     Ini.WriteString('General', 'LastBatchDir', FLastBatchDir);
     Ini.WriteString('General', 'LastBatchFile', FBatchFileName);
     Ini.WriteBool('General', 'OnlyPrecommentedVariables', FOnlyPrecommentedVariables);
+    Ini.ReadSections(Sections);
+    for I := 0 to Sections.Count - 1 do
+      if Copy(Sections[I], 1, 3) = 'Tab' then
+        Ini.EraseSection(Sections[I]);
+
+    Ini.WriteInteger('Tabs', 'Count', FTabs.Count);
+    if FTabControl <> nil then
+      Ini.WriteInteger('Tabs', 'ActiveIndex', FTabControl.PageIndex)
+    else
+      Ini.WriteInteger('Tabs', 'ActiveIndex', 0);
+    for I := 0 to FTabs.Count - 1 do
+    begin
+      Ini.WriteString('Tab' + IntToStr(I + 1), 'BatchFile', FTabs[I].BatchFileName);
+      Ini.WriteString('Tab' + IntToStr(I + 1), 'Name', FTabs[I].CustomName);
+    end;
   finally
+    Sections.Free;
     Ini.Free;
   end;
 end;
@@ -1422,6 +2293,17 @@ end;
 procedure TMainForm.miConfigurarEditorClick(Sender: TObject);
 begin
   ConfigureEditor;
+end;
+
+procedure TMainForm.miNuevaPestanaClick(Sender: TObject);
+begin
+  AddBatchTab('', True);
+  SetStatus('Nueva pestaña');
+end;
+
+procedure TMainForm.miCerrarPestanaClick(Sender: TObject);
+begin
+  CloseBatchTab(FTabControl.PageIndex);
 end;
 
 procedure TMainForm.miDefinirValoresDefaultClick(Sender: TObject);
@@ -1446,8 +2328,13 @@ begin
   Close;
 end;
 
-procedure TMainForm.UpdateRunState(const ARunning: Boolean);
+procedure TMainForm.UpdateRunState;
+var
+  ARunning: Boolean;
+  Tab: TBatchTab;
 begin
+  Tab := ActiveBatchTab;
+  ARunning := (Tab <> nil) and Assigned(Tab.Process);
   btnExecute.Enabled := not ARunning;
   btnLoad.Enabled := not ARunning;
   btnEditBatch.Enabled := not ARunning;
