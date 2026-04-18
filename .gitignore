@@ -12,3 +12,4 @@ bat/*.bak
 *.dbg
 *.bak
 *.tmp
+backup/
