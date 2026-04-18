@@ -1,13 +1,13 @@
 object MainForm: TMainForm
-  Left = 654
+  Left = 749
   Height = 1280
-  Top = 250
+  Top = 274
   Width = 2055
   AllowDropFiles = True
   Caption = 'BAT Runner'
   ClientHeight = 1280
   ClientWidth = 2055
-  Color = 16117730
+  Color = 13426408
   DesignTimePPI = 192
   Menu = MainMenu1
   LCLVersion = '4.6.0.0'
@@ -23,10 +23,11 @@ object MainForm: TMainForm
     Width = 1287
     Align = alClient
     BorderSpacing.Around = 16
+    BevelColor = 13426408
     BevelOuter = bvNone
     ClientHeight = 1204
     ClientWidth = 1287
-    Color = 1119256
+    Color = clBlack
     ParentBackground = False
     ParentColor = False
     TabOrder = 0
@@ -64,7 +65,7 @@ object MainForm: TMainForm
       BorderSpacing.Bottom = 26
       BorderSpacing.Around = 10
       Caption = 'X'
-      Color = 14872565
+      Color = 13426408
       Font.Color = 3946812
       ParentFont = False
       TabOrder = 1
@@ -77,6 +78,8 @@ object MainForm: TMainForm
     Top = 0
     Width = 16
     Align = alRight
+    Color = 13426408
+    ParentColor = False
     ResizeAnchor = akRight
   end
   object pnlRight: TPanel
@@ -225,7 +228,7 @@ object MainForm: TMainForm
     Height = 44
     Top = 1236
     Width = 2055
-    Color = 14339491
+    Color = 13426408
     Panels = <>
     ParentColor = False
   end
